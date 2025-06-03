@@ -1,8 +1,8 @@
-# git-log-raw-parser
+# glrp - git-log-raw-parser
 
 A parser for parsing the command:
 
-```
+```bash
 git log -p --format=raw --show-signature --stat
 ```
 
@@ -19,6 +19,12 @@ The above command provides a lot of useful information about git commits, which 
 
 On its own, git log does not output its information in a format which is easy for other programs to use.
 So, this tool parses the output and turns it into JSON which is more easy to analyze and check.
+
+## Installation
+
+```bash
+pipx install glrp
+```
 
 ## Usage
 
@@ -37,7 +43,7 @@ git clone https://github.com/cfengine/core
 
 (Clone CFEngine core, start subshell which enters the subdirectory and runs git log for the past 500 commits).
 
-## Improtant notes
+## Important notes
 
 **Warning:** The output of `--show-signature` varies depending on which keys you have imported / trusted in your installation of GPG.
 Make sure you import the correct GPG keys beforehand, and don't expect output to be identical across different machines with different GPG states.
