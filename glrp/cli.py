@@ -4,7 +4,7 @@ import argparse
 import json
 
 from glrp.internal_parser import parse, parse_to_all_representations
-import glrp.version.string as version_string
+from glrp.version import string as version_string
 from cfbs.utils import find, mkdir, rm
 from cfbs.pretty import pretty
 
