@@ -6,6 +6,16 @@ A parser for parsing the command:
 git log -p --format=raw --show-signature --stat
 ```
 
+Simply pipe the output:
+
+```
+git log -p --format=raw --show-signature --stat | glrp --pretty
+```
+
+The CLI outputs one JSON object per commit.
+The JSON objects are separated by newlines.
+With `--pretty`, each JSON object is indented to be more readable and printed across multiple lines.
+
 ## Why?
 
 The above command provides a lot of useful information about git commits, which we can analyze, including:
@@ -31,14 +41,14 @@ pipx install glrp
 Using it is simple, just run the `git log` command and pipe it to the standard input of `git_log_raw_parser`
 
 ```
-git log -p --format=raw --show-signature --stat | python3 -m glrp --output-dir=./out/
+git log -p --format=raw --show-signature --stat | glrp --output-dir=./out/
 ```
 
 Or perhaps a bit more realistic:
 
 ```
 git clone https://github.com/cfengine/core
-(cd core && git log -p --format=raw --show-signature --stat HEAD~500..HEAD 2>/dev/null) | python3 git_log_raw_parser.py
+(cd core && git log -p --format=raw --show-signature --stat HEAD~500..HEAD 2>/dev/null) | glrp
 ```
 
 (Clone CFEngine core, start subshell which enters the subdirectory and runs git log for the past 500 commits).
