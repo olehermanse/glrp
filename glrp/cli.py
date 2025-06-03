@@ -4,6 +4,7 @@ import argparse
 import json
 
 from glrp.internal_parser import parse, parse_to_all_representations
+import glrp.version.string as version_string
 from cfbs.utils import find, mkdir, rm
 from cfbs.pretty import pretty
 
@@ -251,9 +252,10 @@ def parse_logs(
 
 def get_args():
     parser = argparse.ArgumentParser(
-        prog="git-log-raw-parser",
+        prog="glrp",
         description="Parses the output of 'git log -p --format=raw --show-signature --stat'",
     )
+    parser.add_argument("--version", action="version", version=version_string())
     parser.add_argument(
         "-o", "--output-dir", help="Output commits to a folder structure"
     )
