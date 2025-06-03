@@ -1,0 +1,1074 @@
+commit db6764a16702747306e851fe0744722c0d001a6f
+gpg: Signature made Fri Apr 25 02:43:28 2025 CEST
+gpg:                using RSA key AFE8C5F43057C0093122299F584211AF6AB3EE12
+gpg:                issuer "ole.elgesem@northern.tech"
+gpg: Good signature from "Ole Herman Schumacher Elgesem <ole@cfengine.com>" [ultimate]
+gpg:                 aka "Ole Herman Schumacher Elgesem <olehelg@ifi.uio.no>" [ultimate]
+gpg:                 aka "Ole Herman Schumacher Elgesem <olehelg@student.matnat.uio.no>" [ultimate]
+gpg:                 aka "Ole Herman Schumacher Elgesem <oleherman93@gmail.com>" [ultimate]
+gpg:                 aka "Ole Herman Schumacher Elgesem <ole.elgesem@northern.tech>" [ultimate]
+gpg:                 aka "Ole Herman Schumacher Elgesem <ole.elgesem@cfengine.com>" [ultimate]
+gpg:                 aka "Ole Herman Schumacher Elgesem <ole@northern.tech>" [ultimate]
+gpg:                 aka "Ole Herman Schumacher Elgesem <olehelg@ulrik.uio.no>" [ultimate]
+gpg:                 aka "Ole Herman Schumacher Elgesem <olehelg@uio.no>" [ultimate]
+tree 593a58028375d27f2ffbd9c4a81a77ee68df791c
+parent 61c6e6461f62464e870d921d33d853ac841c7420
+author Ole Herman Schumacher Elgesem <ole.elgesem@northern.tech> 1745541807 +0200
+committer Ole Herman Schumacher Elgesem <ole.elgesem@northern.tech> 1745541807 +0200
+gpgsig -----BEGIN PGP SIGNATURE-----
+ 
+ iQJOBAABCAA4FiEEr+jF9DBXwAkxIimfWEIRr2qz7hIFAmgK2rAaHG9sZS5lbGdl
+ c2VtQG5vcnRoZXJuLnRlY2gACgkQWEIRr2qz7hL/qw//fyrGzn30Cr2gGY/J9wxS
+ TuH+jd5DP5gunk4neTIsChBud+XCBOYc6/qCygu71DemWvtheEarjOviBLFnsSWH
+ NLtahhC1UCK5ETLHSTNWeJzq7WTCtInwItiaxOv8ojE7y12J1AU+969IdlGJtMv9
+ dLP08idsZZ0eJHY3TM9yihFELRvIWOzeWz+el4mXjaML23QAUmXTlZ/tgXn4on63
+ BmodNWkBkuQm5blTmuK3CZjyF4B7VTYDZM1RCBgypeC7I+ybQk4vpegOIR9Ac59Q
+ gWkYMnpZC7TX3bHjVyLRUlJlGgoknVurLGqgwsRii9jEUW181plTpRj5tcBdP7YQ
+ NyT9IyMGV3bBYwTCfc8ob48Uo5ZLa5WxUTJhL4XzxKWxE0LxNolOa9o8K4lDdMoJ
+ OdH//Yu3e+JwRDLyCl7IyhAhj9BC4If/T448qd6BAcoWWe8SSqDfsDO9rJa+lo3Y
+ yR9cab9OeotSIWpzuKr3ZJYDmY1lPxKlGQs29YOXs0EZ5idCqBZzslT9760syYcq
+ DrQ4u+Fsshdax6Td0Tr/24hiyVN+5jeXJ3UpcC3/0XDoZPVcVTAgosmnkWovMivc
+ vThXo5BS5nODNJLWAkkmJHAR7EIbD3nTFGAStSlXJZHuZ541Km2kR2Px2xeS3C3Z
+ IqjznY4+oz+9d1eUMlafe0U=
+ =m9QU
+ -----END PGP SIGNATURE-----
+
+    Fixed logic
+    
+    Signed-off-by: Ole Herman Schumacher Elgesem <ole.elgesem@northern.tech>
+---
+ git_log_raw_parser.py | 211 +++++++++++++++++++++++++++++---------------------
+ internal_parser.py    |   8 +-
+ 2 files changed, 124 insertions(+), 95 deletions(-)
+
+diff --git a/git_log_raw_parser.py b/git_log_raw_parser.py
+index 1be31c7..e9332db 100644
+--- a/git_log_raw_parser.py
++++ b/git_log_raw_parser.py
+@@ -1,6 +1,7 @@
+ import os
+ import sys
+ import argparse
++import json
+ 
+ from internal_parser import parse, parse_to_all_representations
+ from cfbs.utils import find, mkdir, rm
+@@ -35,6 +36,8 @@ class GlobalState:
+         self.set_trusted_fingerprints()
+ 
+     def _get_trusted_fingerprints(self):
++        if not os.path.isdir("trusted"):
++            return
+         for file in find("trusted", extension=".fp"):
+             with open(file, "r") as f:
+                 for line in f:
+@@ -49,28 +52,28 @@ class GlobalState:
+     def record_email(self, email):
+         if email not in self.emails:
+             self.emails[email] = 1
+-            print("New email: " + email)
++            # print("New email: " + email)
+         else:
+             self.emails[email] += 1
+ 
+     def record_name(self, name):
+         if name not in self.names:
+             self.names[name] = 1
+-            print("New name: " + name)
++            # print("New name: " + name)
+         else:
+             self.names[name] += 1
+ 
+     def record_fingerprint(self, fingerprint):
+         if fingerprint not in self.fingerprints:
+             self.fingerprints[fingerprint] = 1
+-            print("New fingerprint: " + fingerprint)
++            # print("New fingerprint: " + fingerprint)
+         else:
+             self.fingerprints[fingerprint] += 1
+ 
+     def record_unsigned(self, unsigned):
+         if unsigned not in self.unsigneds:
+             self.unsigneds[unsigned] = 1
+-            print("New unsigned: " + unsigned)
++            # print("New unsigned: " + unsigned)
+         else:
+             self.unsigneds[unsigned] += 1
+ 
+@@ -105,6 +108,65 @@ class GlobalState:
+                 if fingerprint not in self.by_id[id]["fingerprints"]:
+                     self.by_id[id]["fingerprints"].append(fingerprint)
+ 
++    def record_commit(self, commit):
++        self.record_by(commit)
++        self.record_email(commit["author"]["email"])
++
++        if commit["author"]["email"] != commit["committer"]["email"]:
++            self.record_email(commit["committer"]["email"])
++
++        self.record_name(commit["author"]["name"])
++        if commit["author"]["name"] != commit["committer"]["name"]:
++            self.record_name(commit["committer"]["name"])
++
++        if "fingerprint" in commit:
++            self.record_fingerprint(
++                commit["committer"]["id"] + " " + commit["fingerprint"]
++            )
++        else:
++            self.record_unsigned(commit["committer"]["id"])
++
++        if "diff" not in commit:
++            self.commits["empty"].append(commit)
++        elif "fingerprint" in commit and commit["fingerprint"] in self.trusted:
++            self.commits["signed-trusted"].append(commit)
++        elif "fingerprint" in commit and commit["fingerprint"] not in self.trusted:
++            self.commits["signed-untrusted"].append(commit)
++        else:
++            self.commits["unsigned"].append(commit)
++
++    def generate_summary(self):
++        self.by_email = {
++            k: v
++            for k, v in self.by_email.items()
++            if len(v["names"]) > 1 or len(v["fingerprints"]) > 1
++        }
++        self.by_name = {
++            k: v
++            for k, v in self.by_name.items()
++            if len(v["emails"]) > 1 or len(v["fingerprints"]) > 1
++        }
++        self.by_id = {k: v for k, v in self.by_id.items() if len(v["fingerprints"]) > 1}
++        self.by_fingerprint = {
++            k: v for k, v in self.by_fingerprint.items() if len(v["ids"]) > 1
++        }
++        self.summary = {
++            "emails": self.emails,
++            "names": self.names,
++            "fingerprints": self.fingerprints,
++            "unsigneds": self.unsigneds,
++            "commit_counts": {
++                "empty": len(self.commits["empty"]),
++                "signed-trusted": len(self.commits["signed-trusted"]),
++                "signed-untrusted": len(self.commits["signed-untrusted"]),
++                "unsigned": len(self.commits["unsigned"]),
++            },
++            "by_name": self.by_name,
++            "by_email": self.by_email,
++            "by_id": self.by_id,
++            "by_fingerprint": self.by_fingerprint,
++        }
++
+ 
+ global_state = GlobalState()
+ 
+@@ -134,101 +196,54 @@ def output_to_directory(output_dir):
+     with open("./out/summary.json", "w") as f:
+         f.write(pretty(global_state.summary) + "\n")
+ 
+-    for key, values in global_state.commits.items():
+-        folder = "./out/" + key
+-        mkdir(folder)
+-        with open(folder + ".txt", "w") as links:
+-            for commit in values:
+-                sha = commit["sha"]
+-                links.write(
+-                    "https://github.com/cfengine/masterfiles/commit/" + sha + "\n"
+-                )
+-                filename = folder + "/" + sha + ".json"
+-                with open(filename, "w") as f:
+-                    f.write(pretty(commit))
+-
+-
+-def parse_logs(output_dir=None, quiet=False, debug_parser=False):
++
++def dump_commit(raw_commit, split_commit, pretty_commit):
++    sha = pretty_commit["sha"]
++    with open(f"./debug/{sha}.1.raw.txt", "w") as f:
++        f.write("\n".join(raw_commit))
++    with open(f"./debug/{sha}.2.raw.json", "w") as f:
++        f.write(pretty(raw_commit))
++    with open(f"./debug/{sha}.3.split.json", "w") as f:
++        f.write(pretty(split_commit))
++    with open(f"./debug/{sha}.4.pretty.json", "w") as f:
++        f.write(pretty(pretty_commit))
++
++
++def parse_logs(
++    output_dir=None, quiet=False, debug_parser=False, summary=False, pretty_print=False
++):
++    assert debug_parser or not quiet or output_dir or summary
++    # If not, there is nothing to do
++
+     if debug_parser:
+         rm("./debug/")
+         mkdir("./debug/")
+         for raw_commit, split_commit, pretty_commit in parse_to_all_representations(
+             sys.stdin
+         ):
+-            sha = pretty_commit["sha"]
+-            with open(f"./debug/{sha}.1.raw.txt", "w") as f:
+-                f.write("\n".join(raw_commit))
+-            with open(f"./debug/{sha}.2.raw.json", "w") as f:
+-                f.write(pretty(raw_commit))
+-            with open(f"./debug/{sha}.3.split.json", "w") as f:
+-                f.write(pretty(split_commit))
+-            with open(f"./debug/{sha}.4.pretty.json", "w") as f:
+-                f.write(pretty(pretty_commit))
++            dump_commit(raw_commit, split_commit, pretty_commit)
++            if not quiet:
++                if pretty_print:
++                    print(pretty(pretty_commit))
++                else:
++                    print(json.dumps(pretty_commit))
+         return
+ 
+     for commit in parse(sys.stdin):
+-        global_state.record_by(commit)
+-        global_state.record_email(commit["author"]["email"])
+-        if commit["author"]["email"] != commit["committer"]["email"]:
+-            global_state.record_email(commit["committer"]["email"])
++        if not summary and not quiet:
++            if pretty_print:
++                print(pretty(commit))
++            else:
++                print(json.dumps(commit))
++        if summary or output_dir:
++            global_state.record_commit(commit)
++
++    if not summary and not output_dir:
++        return
+ 
+-        global_state.record_name(commit["author"]["name"])
+-        if commit["author"]["name"] != commit["committer"]["name"]:
+-            global_state.record_name(commit["committer"]["name"])
++    global_state.generate_summary()
+ 
+-        if "fingerprint" in commit:
+-            global_state.record_fingerprint(
+-                commit["committer"]["id"] + " " + commit["fingerprint"]
+-            )
+-        else:
+-            global_state.record_unsigned(commit["committer"]["id"])
+-
+-        if "diff" not in commit:
+-            global_state.commits["empty"].append(commit)
+-        elif "fingerprint" in commit and commit["fingerprint"] in global_state.trusted:
+-            global_state.commits["signed-trusted"].append(commit)
+-        elif (
+-            "fingerprint" in commit
+-            and commit["fingerprint"] not in global_state.trusted
+-        ):
+-            global_state.commits["signed-untrusted"].append(commit)
+-        else:
+-            global_state.commits["unsigned"].append(commit)
+-
+-    global_state.by_email = {
+-        k: v
+-        for k, v in global_state.by_email.items()
+-        if len(v["names"]) > 1 or len(v["fingerprints"]) > 1
+-    }
+-    global_state.by_name = {
+-        k: v
+-        for k, v in global_state.by_name.items()
+-        if len(v["emails"]) > 1 or len(v["fingerprints"]) > 1
+-    }
+-    global_state.by_id = {
+-        k: v for k, v in global_state.by_id.items() if len(v["fingerprints"]) > 1
+-    }
+-    global_state.by_fingerprint = {
+-        k: v for k, v in global_state.by_fingerprint.items() if len(v["ids"]) > 1
+-    }
+-    global_state.summary = {
+-        "emails": global_state.emails,
+-        "names": global_state.names,
+-        "fingerprints": global_state.fingerprints,
+-        "unsigneds": global_state.unsigneds,
+-        "commit_counts": {
+-            "empty": len(global_state.commits["empty"]),
+-            "signed-trusted": len(global_state.commits["signed-trusted"]),
+-            "signed-untrusted": len(global_state.commits["signed-untrusted"]),
+-            "unsigned": len(global_state.commits["unsigned"]),
+-        },
+-        "by_name": global_state.by_name,
+-        "by_email": global_state.by_email,
+-        "by_id": global_state.by_id,
+-        "by_fingerprint": global_state.by_fingerprint,
+-    }
+-
+-    if not quiet:
++    if summary:
+         print(pretty(global_state.summary))
+     if output_dir:
+         output_to_directory(output_dir)
+@@ -256,13 +271,31 @@ def get_args():
+         action="store_true",
+         help="Store debug information to ./debug/",
+     )
++    parser.add_argument(
++        "--summary",
++        default=False,
++        action="store_true",
++        help="Print summary of commits",
++    )
++    parser.add_argument(
++        "--pretty",
++        default=False,
++        action="store_true",
++        help="Print commit JSONs on multiple lines, with indentation",
++    )
+     args = parser.parse_args()
+     return args
+ 
+ 
+ def main():
+     args = get_args()
+-    parse_logs(output_dir=args.output_dir, quiet=args.quiet, debug_parser=args.debug)
++    parse_logs(
++        output_dir=args.output_dir,
++        quiet=args.quiet,
++        debug_parser=args.debug,
++        summary=args.summary,
++        pretty_print=args.pretty,
++    )
+ 
+ 
+ if __name__ == "__main__":
+diff --git a/internal_parser.py b/internal_parser.py
+index 179cf63..2430379 100644
+--- a/internal_parser.py
++++ b/internal_parser.py
+@@ -1,5 +1,3 @@
+-from cfbs.pretty import pretty
+-
+ """
+ This file contains the internal / library functions for parsing the output
+ of 'git log -p --format=raw --show-signature --stat'
+@@ -175,7 +173,6 @@ def raw_commits_to_split_commits(raw_commits):
+             )
+             line = next(lines)
+ 
+-        print(pretty(raw))
+         assert line and line.startswith("tree ")  # TODO: Always?
+         if line and line.startswith("tree "):
+             commit["tree"] = remove_prefix(line, "tree ")
+@@ -186,8 +183,6 @@ def raw_commits_to_split_commits(raw_commits):
+                 commit["parent"] = []
+             commit["parent"].append(remove_prefix(line, "parent "))
+             line = next(lines)
+-        if "parent" in commit:
+-            assert 0 < len(commit["parent"]) <= 2
+ 
+         assert line and line.startswith("author ")  # TODO: Always?
+         if line and line.startswith("author "):
+@@ -251,8 +246,9 @@ def split_commits_to_pretty_commits(split_commits):
+ 
+         if "gpg" in commit:
+             assert commit["gpg"][0].startswith("Signature made ")
++            commit["valid_signature"] = True
+             if not valid_signature(commit):
+-                print("Bad signature:" + pretty(commit))
++                commit["valid_signature"] = False
+             final["fingerprint"] = remove_prefix(
+                 commit["gpg"][1], "               using RSA key "
+             )
+
+commit 61c6e6461f62464e870d921d33d853ac841c7420
+gpg: Signature made Fri Apr 25 00:55:24 2025 CEST
+gpg:                using RSA key AFE8C5F43057C0093122299F584211AF6AB3EE12
+gpg:                issuer "ole.elgesem@northern.tech"
+gpg: Good signature from "Ole Herman Schumacher Elgesem <ole@cfengine.com>" [ultimate]
+gpg:                 aka "Ole Herman Schumacher Elgesem <olehelg@ifi.uio.no>" [ultimate]
+gpg:                 aka "Ole Herman Schumacher Elgesem <olehelg@student.matnat.uio.no>" [ultimate]
+gpg:                 aka "Ole Herman Schumacher Elgesem <oleherman93@gmail.com>" [ultimate]
+gpg:                 aka "Ole Herman Schumacher Elgesem <ole.elgesem@northern.tech>" [ultimate]
+gpg:                 aka "Ole Herman Schumacher Elgesem <ole.elgesem@cfengine.com>" [ultimate]
+gpg:                 aka "Ole Herman Schumacher Elgesem <ole@northern.tech>" [ultimate]
+gpg:                 aka "Ole Herman Schumacher Elgesem <olehelg@ulrik.uio.no>" [ultimate]
+gpg:                 aka "Ole Herman Schumacher Elgesem <olehelg@uio.no>" [ultimate]
+tree ece6177eb4489042bee34fcafc16a123f57cbc7b
+author Ole Herman Schumacher Elgesem <ole.elgesem@northern.tech> 1744918684 +0200
+committer Ole Herman Schumacher Elgesem <ole.elgesem@northern.tech> 1745535319 +0200
+gpgsig -----BEGIN PGP SIGNATURE-----
+ 
+ iQJOBAABCAA4FiEEr+jF9DBXwAkxIimfWEIRr2qz7hIFAmgKwVwaHG9sZS5lbGdl
+ c2VtQG5vcnRoZXJuLnRlY2gACgkQWEIRr2qz7hIMABAAqZT9E1seWQ1Vr5RasscE
+ sVb7pkQrnlH0aF4dudGxFF8GBNLRCJsUwf7r6mIjcIdKFM2DqPDIg2dor3OC2hOX
+ vFZxC87iRyX+8sYIhk7F2HNkVK8tTOwUNYm3STKF+7dYYJx5Au0I52aeaVmOnavU
+ Yyx+SKNwwDsNVrTYWM2U9RyKo1PobnWwVGPbXGamA74hAg4sSPAOEGSJgfqNNRBd
+ FtEGFbt6xB1joL5WFE0ChqNgd/HBt5O//k8L9bJ0k5WwfHLZGJLQofyuI4rzkgce
+ Hg6+cLFX420XWsfNoVTnTiwt7Ga1uLJP6oNBeC62QcOdnh69Cq8abOrbesiG94P1
+ wby88VBShcZbWMaYqtX5pWUmhltKG97QmU2bRCe21LLCtnq/wvdx8HmKu462xAnu
+ D5gTNHslab8joEG9CwVtUHFDX/jVNVReJduxTov2tV+QRodiFV2nf9tvHLmB1aXU
+ Ke6ism4jKY+LGtp0PHr5qrPcnf+49SKF707Eh4plVlY8F2N75RxpivoQZ1CnPSAe
+ WavgiMi/mRP0y0WjlRp88C+m5cUjJe+brXQ+8Xx7FC9q1vwR1yN4UWpNcoy82z8w
+ cGA1Rbt4rAsY2IiAEsCx7TL6GSBXQ/2/M3dS1tO4C6f+R0XuXs/tY9tNCY3oph2a
+ prbPnQ0FD1M1woG7oqCvoDo=
+ =TNNi
+ -----END PGP SIGNATURE-----
+
+    Initial commit, working version
+    
+    Signed-off-by: Ole Herman Schumacher Elgesem <ole.elgesem@northern.tech>
+---
+ .gitignore            |   6 ++
+ README.md             |  53 ++++++++++
+ git_log_raw_parser.py | 269 ++++++++++++++++++++++++++++++++++++++++++++++++++
+ internal_parser.py    | 264 +++++++++++++++++++++++++++++++++++++++++++++++++
+ look_for_pulls.py     |  23 +++++
+ requirements.txt      |   3 +
+ 6 files changed, 618 insertions(+)
+
+diff --git a/.gitignore b/.gitignore
+new file mode 100644
+index 0000000..4316b8d
+--- /dev/null
++++ b/.gitignore
+@@ -0,0 +1,6 @@
++/core/
++/masterfiles/
++/out/
++__pycache__/
++/debug/
++/trusted/
+diff --git a/README.md b/README.md
+new file mode 100644
+index 0000000..534755a
+--- /dev/null
++++ b/README.md
+@@ -0,0 +1,53 @@
++# git-log-raw-parser
++
++A parser for parsing the command:
++
++```
++git log -p --format=raw --show-signature --stat
++```
++
++## Why?
++
++The above command provides a lot of useful information about git commits, which we can analyze, including:
++
++- Commit message
++- Diffs
++- Author name and email
++- Committer name and email
++- Timestamps
++- GPG signature
++
++On its own, git log does not output its information in a format which is easy for other programs to use.
++So, this tool parses the output and turns it into JSON which is more easy to analyze and check.
++
++## Usage
++
++Using it is simple, just run the `git log` command and pipe it to the standard input of `git_log_raw_parser`
++
++```
++git log -p --format=raw --show-signature --stat | python3 git_log_raw_parser.py --output-dir=./out/
++```
++
++Or perhaps a bit more realistic:
++
++```
++git clone https://github.com/cfengine/core
++(cd core && git log -p --format=raw --show-signature --stat HEAD~500..HEAD 2>/dev/null) | python3 git_log_raw_parser.py
++```
++
++(Clone CFEngine core, start subshell which enters the subdirectory and runs git log for the past 500 commits).
++
++## Improtant notes
++
++**Warning:** The output of `--show-signature` varies depending on which keys you have imported / trusted in your installation of GPG.
++Make sure you import the correct GPG keys beforehand, and don't expect output to be identical across different machines with different GPG states.
++
++**Warning:** Consider this a best-effort, "lossy" parsing.
++Commits may contain non utf-8 characters, to avoid "crashing", we skip these, replacing them with question marks.
++Thus, the parsing is lossy, don't expect all the information to be there.
++This tool can be used for searching / analyzing commits, but don't use it as some kind of backup tool where you expect to have the ability to "reconstruct" the commits and repo entirely.
++
++## Details
++
++For details on how the parsing works, try running with `--debug` and look at the resulting `./debug/` folder.
++Also, see the comments in the source code; [./git_log_raw_parser.py](./git_log_raw_parser.py)
+diff --git a/git_log_raw_parser.py b/git_log_raw_parser.py
+new file mode 100644
+index 0000000..1be31c7
+--- /dev/null
++++ b/git_log_raw_parser.py
+@@ -0,0 +1,269 @@
++import os
++import sys
++import argparse
++
++from internal_parser import parse, parse_to_all_representations
++from cfbs.utils import find, mkdir, rm
++from cfbs.pretty import pretty
++
++# Usage:
++# git log -p --format=raw --show-signature --stat | python3 git_log_raw_parser.py
++
++
++class GlobalState:
++    def __init__(self):
++        self.quiet = False
++        self.emails = {}
++        self.names = {}
++        self.fingerprints = {}
++        self.unsigneds = {}
++
++        self.commits = {
++            "empty": [],
++            "unsigned": [],
++            "signed-trusted": [],
++            "signed-untrusted": [],
++        }
++
++        self.by_name = {}
++        self.by_email = {}
++        self.by_fingerprint = {}
++        self.by_id = {}
++        self.summary = {}
++        self.trusted = None
++
++        self.set_trusted_fingerprints()
++
++    def _get_trusted_fingerprints(self):
++        for file in find("trusted", extension=".fp"):
++            with open(file, "r") as f:
++                for line in f:
++                    line = line.strip()
++                    line = line.replace(" ", "")
++                    if line:
++                        yield line
++
++    def set_trusted_fingerprints(self):
++        self.trusted = list(self._get_trusted_fingerprints())
++
++    def record_email(self, email):
++        if email not in self.emails:
++            self.emails[email] = 1
++            print("New email: " + email)
++        else:
++            self.emails[email] += 1
++
++    def record_name(self, name):
++        if name not in self.names:
++            self.names[name] = 1
++            print("New name: " + name)
++        else:
++            self.names[name] += 1
++
++    def record_fingerprint(self, fingerprint):
++        if fingerprint not in self.fingerprints:
++            self.fingerprints[fingerprint] = 1
++            print("New fingerprint: " + fingerprint)
++        else:
++            self.fingerprints[fingerprint] += 1
++
++    def record_unsigned(self, unsigned):
++        if unsigned not in self.unsigneds:
++            self.unsigneds[unsigned] = 1
++            print("New unsigned: " + unsigned)
++        else:
++            self.unsigneds[unsigned] += 1
++
++    def record_user(self, user):
++        name = user["name"]
++        email = user["email"]
++        id = user["id"]
++
++        if name not in self.by_name:
++            self.by_name[name] = {"emails": [], "fingerprints": []}
++        if email not in self.by_email:
++            self.by_email[email] = {"names": [], "fingerprints": []}
++        if id not in self.by_id:
++            self.by_id[id] = {"fingerprints": []}
++
++        if email not in self.by_name[name]["emails"]:
++            self.by_name[name]["emails"].append(email)
++
++        if name not in self.by_email[email]["names"]:
++            self.by_email[email]["names"].append(name)
++
++    def record_by(self, commit):
++        self.record_user(commit["author"])
++        self.record_user(commit["committer"])
++        id = commit["committer"]["id"]
++        fingerprint = commit.get("fingerprint", "unsigned")
++        if fingerprint != "unsigned":
++            if fingerprint not in self.by_fingerprint:
++                self.by_fingerprint[fingerprint] = {"ids": []}
++            if id not in self.by_fingerprint[fingerprint]["ids"]:
++                self.by_fingerprint[fingerprint]["ids"].append(id)
++                if fingerprint not in self.by_id[id]["fingerprints"]:
++                    self.by_id[id]["fingerprints"].append(fingerprint)
++
++
++global_state = GlobalState()
++
++
++def output_to_directory(output_dir):
++    assert output_dir is not None and output_dir != ""
++    if not output_dir.endswith("/"):
++        output_dir = output_dir + "/"
++    if (
++        not output_dir.startswith("./")
++        and not output_dir.startswith("/")
++        and not output_dir.startswith("~/")
++    ):
++        output_dir = "./" + output_dir
++
++    assert output_dir != "/"
++    assert output_dir != "./"
++    assert output_dir != "~/"
++    assert output_dir != "."
++
++    assert os.path.isdir(output_dir) or not os.path.exists(output_dir)
++
++    rm(output_dir, missing_ok=True)
++
++    mkdir("./out/", exist_ok=True)
++
++    with open("./out/summary.json", "w") as f:
++        f.write(pretty(global_state.summary) + "\n")
++
++    for key, values in global_state.commits.items():
++        folder = "./out/" + key
++        mkdir(folder)
++        with open(folder + ".txt", "w") as links:
++            for commit in values:
++                sha = commit["sha"]
++                links.write(
++                    "https://github.com/cfengine/masterfiles/commit/" + sha + "\n"
++                )
++                filename = folder + "/" + sha + ".json"
++                with open(filename, "w") as f:
++                    f.write(pretty(commit))
++
++
++def parse_logs(output_dir=None, quiet=False, debug_parser=False):
++    if debug_parser:
++        rm("./debug/")
++        mkdir("./debug/")
++        for raw_commit, split_commit, pretty_commit in parse_to_all_representations(
++            sys.stdin
++        ):
++            sha = pretty_commit["sha"]
++            with open(f"./debug/{sha}.1.raw.txt", "w") as f:
++                f.write("\n".join(raw_commit))
++            with open(f"./debug/{sha}.2.raw.json", "w") as f:
++                f.write(pretty(raw_commit))
++            with open(f"./debug/{sha}.3.split.json", "w") as f:
++                f.write(pretty(split_commit))
++            with open(f"./debug/{sha}.4.pretty.json", "w") as f:
++                f.write(pretty(pretty_commit))
++        return
++
++    for commit in parse(sys.stdin):
++        global_state.record_by(commit)
++        global_state.record_email(commit["author"]["email"])
++        if commit["author"]["email"] != commit["committer"]["email"]:
++            global_state.record_email(commit["committer"]["email"])
++
++        global_state.record_name(commit["author"]["name"])
++        if commit["author"]["name"] != commit["committer"]["name"]:
++            global_state.record_name(commit["committer"]["name"])
++
++        if "fingerprint" in commit:
++            global_state.record_fingerprint(
++                commit["committer"]["id"] + " " + commit["fingerprint"]
++            )
++        else:
++            global_state.record_unsigned(commit["committer"]["id"])
++
++        if "diff" not in commit:
++            global_state.commits["empty"].append(commit)
++        elif "fingerprint" in commit and commit["fingerprint"] in global_state.trusted:
++            global_state.commits["signed-trusted"].append(commit)
++        elif (
++            "fingerprint" in commit
++            and commit["fingerprint"] not in global_state.trusted
++        ):
++            global_state.commits["signed-untrusted"].append(commit)
++        else:
++            global_state.commits["unsigned"].append(commit)
++
++    global_state.by_email = {
++        k: v
++        for k, v in global_state.by_email.items()
++        if len(v["names"]) > 1 or len(v["fingerprints"]) > 1
++    }
++    global_state.by_name = {
++        k: v
++        for k, v in global_state.by_name.items()
++        if len(v["emails"]) > 1 or len(v["fingerprints"]) > 1
++    }
++    global_state.by_id = {
++        k: v for k, v in global_state.by_id.items() if len(v["fingerprints"]) > 1
++    }
++    global_state.by_fingerprint = {
++        k: v for k, v in global_state.by_fingerprint.items() if len(v["ids"]) > 1
++    }
++    global_state.summary = {
++        "emails": global_state.emails,
++        "names": global_state.names,
++        "fingerprints": global_state.fingerprints,
++        "unsigneds": global_state.unsigneds,
++        "commit_counts": {
++            "empty": len(global_state.commits["empty"]),
++            "signed-trusted": len(global_state.commits["signed-trusted"]),
++            "signed-untrusted": len(global_state.commits["signed-untrusted"]),
++            "unsigned": len(global_state.commits["unsigned"]),
++        },
++        "by_name": global_state.by_name,
++        "by_email": global_state.by_email,
++        "by_id": global_state.by_id,
++        "by_fingerprint": global_state.by_fingerprint,
++    }
++
++    if not quiet:
++        print(pretty(global_state.summary))
++    if output_dir:
++        output_to_directory(output_dir)
++
++
++def get_args():
++    parser = argparse.ArgumentParser(
++        prog="git-log-raw-parser",
++        description="Parses the output of 'git log -p --format=raw --show-signature --stat'",
++    )
++    parser.add_argument(
++        "-o", "--output-dir", help="Output commits to a folder structure"
++    )
++    parser.add_argument(
++        "-q",
++        "--quiet",
++        default=False,
++        action="store_true",
++        help="Stop printing JSON commits to standard out",
++    )
++    parser.add_argument(
++        "-d",
++        "--debug",
++        default=False,
++        action="store_true",
++        help="Store debug information to ./debug/",
++    )
++    args = parser.parse_args()
++    return args
++
++
++def main():
++    args = get_args()
++    parse_logs(output_dir=args.output_dir, quiet=args.quiet, debug_parser=args.debug)
++
++
++if __name__ == "__main__":
++    main()
+diff --git a/internal_parser.py b/internal_parser.py
+new file mode 100644
+index 0000000..179cf63
+--- /dev/null
++++ b/internal_parser.py
+@@ -0,0 +1,264 @@
++from cfbs.pretty import pretty
++
++"""
++This file contains the internal / library functions for parsing the output
++of 'git log -p --format=raw --show-signature --stat'
++There is intentionally no main function / CLI here, only testable and importable
++functions to perform the parsing. CLI, and additional tracking, summaries etc.
++are implemented in git_log_raw_parser.py
++
++This is done in 4 steps:
++1. Iterate over the input stream generating lines
++2. Iterate over lines, find where the next commit starts, and generate "raw commits" (list of lines within one commit)
++3. Iterate over raw commits, find where each section starts, and generate "split commits"
++4. Iterate over the split commits, generating pretty commits.
++
++All of this is implemented using generators / iterators, so you can process and output results
++while later commits are still being printed / processed.
++
++Performance-wise, the 4 step parsing outlined above is not ideal, but it helps a lot
++in making the code simpler to write and read and less error prone.
++In pracitce, performance is good enough, even for hundreds, or thousands commits.
++
++If you want to operate on the more raw data without much translations / prettifying,
++you can skip step 4, or steps 3 and 4.
++
++Note: The output of the git log command we use varies based on gpg (which keys are imported).
++      Don't expect the same output on different machines with different gpg states.
++
++Note: The parsing is lossy, we reconfigure the input stream to replace unicode
++      errors (with question marks), so don't expect the diffs or commit messages to be
++      100% correct for these cases.
++"""
++
++import sys
++from io import TextIOWrapper
++
++
++def _reconfigure(input_stream):
++    # input_stream / sys.stdin is defined as TextIO in typeshed even though it's actually TextIOWrapper by default
++    # This decision was made because it's common to reassign stdin / stdout / stderr:
++    # https://github.com/python/typeshed/issues/10093
++    # For this parser we need to use reconfigure from TextIOWrapper, so we don't
++    # encounter exceptions for commit messages / diffs with weird characters.
++    # So we need to assume that sys.stdin is actually TextIOWrapper,
++    # the assertion makes this assumption explicit and makes strict typecheckers like Pyright happy.
++    assert isinstance(input_stream, TextIOWrapper)
++    input_stream.reconfigure(errors="replace")
++
++
++# Utilities:
++
++
++def remove_prefix(line, prefix):
++    assert line.startswith(prefix)
++    offset = len(prefix)
++    assert offset > 0
++    return line[offset:]
++
++
++def remove_suffix(line, suffix):
++    assert line.endswith(suffix)
++    offset = len(suffix)
++    assert offset > 0
++    return line[0:-offset]
++
++
++def parse_author(line):
++    author = {}
++    split = line.split(" ")
++    timezone = split[-1]
++    timestamp = split[-2]
++    suffix = " " + " ".join(split[-2:])
++    full = remove_suffix(line, suffix)
++    author["id"] = full
++    assert full[-1] == ">"
++    full = full[0:-1]
++    split = full.split("<")
++    assert len(split) == 2
++    author["name"] = split[0].strip()
++    author["email"] = split[1].strip()
++    author["timestamp"] = timestamp
++    author["timezone"] = timezone
++    return author
++
++
++def valid_signature(commit):
++    for line in commit["gpg"]:
++        if line.startswith("Good signature from "):
++            return True
++    return False
++
++
++# The main parsing function to use in most cases:
++
++
++def parse(input_stream=None, replace_errors=True):
++    if input_stream is None:
++        input_stream = sys.stdin
++    if replace_errors:
++        _reconfigure(input_stream)
++    lines = input_stream_to_lines(input_stream)
++    raw_commits = lines_to_raw_commits(lines)
++    split_commits = raw_commits_to_split_commits(raw_commits)
++    pretty_commits = split_commits_to_pretty_commits(split_commits)
++    for pretty_commit in pretty_commits:
++        # TODO: Do we want to do something more here?
++        yield pretty_commit
++
++
++# Another version of parse() which gives you all 3 representations of a commit
++# Mostly useful for debugging
++def parse_to_all_representations(input_stream=None, replace_errors=True):
++    if input_stream is None:
++        input_stream = sys.stdin
++    if replace_errors:
++        _reconfigure(input_stream)
++    lines = input_stream_to_lines(input_stream)
++    raw_commits = lines_to_raw_commits(lines)
++    for raw_commit in raw_commits:
++        # These function normally operate on iterators which yield many elements
++        # (the entire git log), but we can call them on a n=1 tuple as well:
++        split_commit = next(raw_commits_to_split_commits((raw_commit,)))
++        pretty_commit = next(split_commits_to_pretty_commits((split_commit,)))
++        yield (raw_commit, split_commit, pretty_commit)
++
++
++# The individual steps / iterators:
++
++
++def input_stream_to_lines(input_stream):
++    for line in input_stream:
++        yield line
++
++
++def lines_to_raw_commits(line_iterator):
++    current_commit = []
++    for line in line_iterator:
++        assert line[-1] == "\n"
++        line = line[0:-1]
++        if line.startswith("commit "):
++            # New commit, finalize previous
++            if current_commit:
++                yield current_commit
++                current_commit = []
++        current_commit.append(line)
++    if current_commit:
++        yield current_commit
++
++
++def raw_commits_to_split_commits(raw_commits):
++    for raw in raw_commits:
++        commit = {}
++        first_line = raw[0]
++        assert len(first_line) == len("commit 680e160eef58249b1b896512d50f6342ad325f01")
++        assert first_line.startswith("commit ")
++        commit["sha"] = remove_prefix(first_line, "commit ")
++        lines = (l for l in raw[1:])
++        line = next(lines)
++        while line and line.startswith("gpg: "):
++            line = remove_prefix(line, "gpg: ")
++            if "gpg" not in commit:
++                commit["gpg"] = []
++            commit["gpg"].append(line)
++            line = next(lines)
++
++        if line and line.startswith("Primary key fingerprint: "):
++            commit["Primary key fingerprint"] = remove_prefix(
++                line, "Primary key fingerprint: "
++            )
++            line = next(lines)
++
++        if line and line.startswith("     Subkey fingerprint: "):
++            commit["Subkey fingerprint"] = remove_prefix(
++                line, "     Subkey fingerprint: "
++            )
++            line = next(lines)
++
++        print(pretty(raw))
++        assert line and line.startswith("tree ")  # TODO: Always?
++        if line and line.startswith("tree "):
++            commit["tree"] = remove_prefix(line, "tree ")
++            line = next(lines)
++
++        while line and line.startswith("parent "):
++            if not "parent" in commit:
++                commit["parent"] = []
++            commit["parent"].append(remove_prefix(line, "parent "))
++            line = next(lines)
++        if "parent" in commit:
++            assert 0 < len(commit["parent"]) <= 2
++
++        assert line and line.startswith("author ")  # TODO: Always?
++        if line and line.startswith("author "):
++            commit["author"] = remove_prefix(line, "author ")
++            line = next(lines)
++
++        assert line and line.startswith("committer ")  # TODO: Always?
++        if line and line.startswith("committer "):
++            commit["committer"] = remove_prefix(line, "committer ")
++            line = next(lines)
++
++        if line and line.startswith("gpgsig "):
++            commit["gpgsig"] = [remove_prefix(line, "gpgsig ")]
++            line = next(lines)
++            while not line.startswith(" -----END PGP SIGNATURE-----"):
++                assert "BEGIN PGP SIGNATURE" not in line
++                commit["gpgsig"].append(line)
++                line = next(lines)
++            assert line == " -----END PGP SIGNATURE-----"
++            commit["gpgsig"].append(line)
++            line = next(lines)
++        try:
++            while line == " ":
++                line = next(lines)
++            while line == "":
++                line = next(lines)
++            commit["message"] = []
++            while line and line != "---":
++                commit["message"].append(line)
++                line = next(lines)
++            if line and line == "---":
++                commit["diff"] = []
++                line = next(lines)
++                for line in lines:
++                    commit["diff"].append(line)
++        except StopIteration:
++            pass
++        yield commit
++
++
++def split_commits_to_pretty_commits(split_commits):
++    for commit in split_commits:
++        final = {}
++        for key, value in commit.items():
++            final[key] = value
++        if "gpgsig" in final:
++            assert final["gpgsig"][0] == "-----BEGIN PGP SIGNATURE-----"
++            signature = ["-----BEGIN PGP SIGNATURE-----"]
++            for line in final["gpgsig"][1:]:
++                assert line.startswith(" ")
++                signature.append(line[1:])
++            final["gpgsig"] = "\n".join(signature)
++
++        assert "author" in final
++        final["author"] = parse_author(final["author"])
++        assert "committer" in final
++        final["committer"] = parse_author(final["committer"])
++
++        if "Primary key fingerprint" in final:
++            del final["Primary key fingerprint"]
++
++        if "gpg" in commit:
++            assert commit["gpg"][0].startswith("Signature made ")
++            if not valid_signature(commit):
++                print("Bad signature:" + pretty(commit))
++            final["fingerprint"] = remove_prefix(
++                commit["gpg"][1], "               using RSA key "
++            )
++            if "Primary key fingerprint" in final:
++                del final["Primary key fingerprint"]
++
++        assert "message" in final
++        final["message"] = "\n".join(x[4:] for x in final["message"])
++        yield final
+diff --git a/look_for_pulls.py b/look_for_pulls.py
+new file mode 100644
+index 0000000..9cc9e1f
+--- /dev/null
++++ b/look_for_pulls.py
+@@ -0,0 +1,23 @@
++import sys
++import os
++
++import requests
++
++pat = os.getenv("GH_PAT")
++
++for line in sys.stdin:
++    headers = {
++        "Accept": "application/vnd.github+json",
++        "Authorization": f"Bearer {pat}",
++        "X-GitHub-Api-Version": "2022-11-28",
++    }
++    line = line.replace("github.com", "api.github.com/repos").replace("/commit/", "/commits/").strip() + "/pulls"
++    r = requests.get(line, headers=headers)
++    if r.status_code != 200:
++        print("Bad status code: " + str(r.status_code) + " " + line)
++    data = r.json()
++    if len(data) == 0:
++        print("Empty: " + line)
++        continue
++    target = data[0]["url"]
++    print(line + " -> " + target)
+diff --git a/requirements.txt b/requirements.txt
+new file mode 100644
+index 0000000..30b6f90
+--- /dev/null
++++ b/requirements.txt
+@@ -0,0 +1,3 @@
++cf-remote==0.6.4
++cfbs==4.4.0
++requests==2.31.0

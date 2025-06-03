@@ -1,0 +1,7 @@
+/core/
+/masterfiles/
+/out/
+__pycache__/
+/debug/
+/trusted/
+/core
