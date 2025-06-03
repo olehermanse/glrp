@@ -44,7 +44,7 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
     python_requires=">=3.6",
-    entry_points={"console_scripts": ["glrp = glrp.main:main"]},
+    entry_points={"console_scripts": ["glrp = glrp.cli:main"]},
     install_requires=[
         "cf-remote >= 0.6.4",
         "cfbs >= 4.4.0",
