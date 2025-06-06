@@ -211,7 +211,7 @@ def output_to_directory(output_dir):
             commit,
         )
         write_json(
-            f"{output_dir}index/{str(index).rjust(6, "0")}.json",
+            f"{output_dir}index/{str(index).rjust(6, '0')}.json",
             commit,
         )
         index += 1
