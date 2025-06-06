@@ -39,6 +39,7 @@ jobs:
           pytest
       - name: Test with shell tests
         run: |
+          git fetch --all --tags
           pip install .
           cd tests/shell
           bash run.sh
