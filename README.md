@@ -1,6 +1,7 @@
 # glrp - git log raw parser
 
-A parser for parsing the command:
+A parser for parsing the output of git log, specifically with the `--format=raw` option.
+This is the intended git command to use:
 
 ```bash
 git log -p --format=raw --show-signature --stat
@@ -20,16 +21,16 @@ With `--pretty`, each JSON object is indented to be more readable and printed ac
 
 ## Why?
 
-The above command provides a lot of useful information about git commits, which we can analyze, including:
+The above command provides a lot of useful information about each git commit, which we can analyze, including:
 
 - Commit message
-- Diffs
+- Diff
 - Author name and email
 - Committer name and email
 - Timestamps
 - GPG signature
 
-On its own, git log does not output its information in a format which is easy for other programs to use.
+On its own, `git log` does not output its information in a format which is easy for other programs to use.
 So, this tool parses the output and turns it into JSON which is more easy to analyze and check.
 
 ## Installation
