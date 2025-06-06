@@ -274,16 +274,17 @@ def split_commits_to_pretty_commits(split_commits):
             del final["Primary key fingerprint"]
 
         if "gpg" in final:
-            print(final["gpg"][0])
-            assert final["gpg"][0].startswith("Signature made ")
-            final["valid_signature"] = True
-            if not valid_signature(final):
-                final["valid_signature"] = False
-            final["fingerprint"] = remove_prefix(
-                final["gpg"][1], "               using RSA key "
-            )
-            if "Primary key fingerprint" in final:
-                del final["Primary key fingerprint"]
+            if final["gpg"][0].startswith("Signature made "):
+                final["valid_signature"] = True
+                if not valid_signature(final):
+                    final["valid_signature"] = False
+                final["fingerprint"] = remove_prefix(
+                    final["gpg"][1], "               using RSA key "
+                )
+                if "Primary key fingerprint" in final:
+                    del final["Primary key fingerprint"]
+            else:
+                pass  # TODO look into this
 
         assert "message" in final
         final["message"] = "\n".join(x[4:] for x in final["message"])
