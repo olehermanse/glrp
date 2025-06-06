@@ -331,7 +331,6 @@ def parse_logs(
                 stderr=subprocess.PIPE,
                 text=True,
             )
-            global all_processes
             all_processes.append(process)
             input_file = process.stdout
         else:
