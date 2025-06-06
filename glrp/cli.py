@@ -218,7 +218,7 @@ def output_to_directory(output_dir):
 
 
 def dump_commit(raw_commit, split_commit, pretty_commit):
-    sha = pretty_commit["sha"]
+    sha = pretty_commit["commit"]
     with open(f"./debug/{sha}.1.raw.txt", "w") as f:
         f.write("\n".join(raw_commit))
     with open(f"./debug/{sha}.2.raw.json", "w") as f:
@@ -265,8 +265,8 @@ def _parse_logs(
     pretty: bool,
 ):
     if debug:
-        rm("./debug/")
-        mkdir("./debug/")
+        rm("./debug/", missing_ok=True)
+        mkdir("./debug/", exist_ok=False)
         for raw_commit, split_commit, pretty_commit in parse_to_all_representations(
             input
         ):
