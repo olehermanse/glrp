@@ -274,6 +274,7 @@ def split_commits_to_pretty_commits(split_commits):
             del final["Primary key fingerprint"]
 
         if "gpg" in final:
+            print(final["gpg"][0])
             assert final["gpg"][0].startswith("Signature made ")
             final["valid_signature"] = True
             if not valid_signature(final):
