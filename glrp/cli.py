@@ -1,15 +1,19 @@
+import subprocess
 import os
 import sys
 import argparse
 import json
+from typing import Optional
 
 from glrp.internal_parser import parse, parse_to_all_representations
 from glrp.version import string as version_string
-from cfbs.utils import find, mkdir, rm
-from cfbs.pretty import pretty
+from cfbs.utils import find, mkdir, rm, write_json
+from cfbs.pretty import pretty as prettify
 
 # Usage:
 # git log -p --format=raw --show-signature --stat | python3 git_log_raw_parser.py
+
+all_processes = []
 
 
 class GlobalState:
@@ -20,12 +24,14 @@ class GlobalState:
         self.fingerprints = {}
         self.unsigneds = {}
 
-        self.commits = {
+        self.counts = {
             "empty": [],
             "unsigned": [],
             "signed-trusted": [],
             "signed-untrusted": [],
         }
+
+        self.commits = {}
 
         self.by_name = {}
         self.by_email = {}
@@ -110,6 +116,7 @@ class GlobalState:
                     self.by_id[id]["fingerprints"].append(fingerprint)
 
     def record_commit(self, commit):
+        self.commits[commit["commit"]] = commit
         self.record_by(commit)
         self.record_email(commit["author"]["email"])
 
@@ -128,13 +135,13 @@ class GlobalState:
             self.record_unsigned(commit["committer"]["id"])
 
         if "diff" not in commit:
-            self.commits["empty"].append(commit)
+            self.counts["empty"].append(commit)
         elif "fingerprint" in commit and commit["fingerprint"] in self.trusted:
-            self.commits["signed-trusted"].append(commit)
+            self.counts["signed-trusted"].append(commit)
         elif "fingerprint" in commit and commit["fingerprint"] not in self.trusted:
-            self.commits["signed-untrusted"].append(commit)
+            self.counts["signed-untrusted"].append(commit)
         else:
-            self.commits["unsigned"].append(commit)
+            self.counts["unsigned"].append(commit)
 
     def generate_summary(self):
         self.by_email = {
@@ -157,10 +164,10 @@ class GlobalState:
             "fingerprints": self.fingerprints,
             "unsigneds": self.unsigneds,
             "commit_counts": {
-                "empty": len(self.commits["empty"]),
-                "signed-trusted": len(self.commits["signed-trusted"]),
-                "signed-untrusted": len(self.commits["signed-untrusted"]),
-                "unsigned": len(self.commits["unsigned"]),
+                "empty": len(self.counts["empty"]),
+                "signed-trusted": len(self.counts["signed-trusted"]),
+                "signed-untrusted": len(self.counts["signed-untrusted"]),
+                "unsigned": len(self.counts["unsigned"]),
             },
             "by_name": self.by_name,
             "by_email": self.by_email,
@@ -192,10 +199,22 @@ def output_to_directory(output_dir):
 
     rm(output_dir, missing_ok=True)
 
-    mkdir("./out/", exist_ok=True)
+    mkdir(f"{output_dir}", exist_ok=True)
 
-    with open("./out/summary.json", "w") as f:
-        f.write(pretty(global_state.summary) + "\n")
+    with open(f"{output_dir}summary.json", "w") as f:
+        f.write(prettify(global_state.summary) + "\n")
+
+    index = 0
+    for sha, commit in global_state.commits.items():
+        write_json(
+            f"{output_dir}shas/{sha}.json",
+            commit,
+        )
+        write_json(
+            f"{output_dir}index/{str(index).rjust(6, "0")}.json",
+            commit,
+        )
+        index += 1
 
 
 def dump_commit(raw_commit, split_commit, pretty_commit):
@@ -203,37 +222,66 @@ def dump_commit(raw_commit, split_commit, pretty_commit):
     with open(f"./debug/{sha}.1.raw.txt", "w") as f:
         f.write("\n".join(raw_commit))
     with open(f"./debug/{sha}.2.raw.json", "w") as f:
-        f.write(pretty(raw_commit))
+        f.write(prettify(raw_commit))
     with open(f"./debug/{sha}.3.split.json", "w") as f:
-        f.write(pretty(split_commit))
+        f.write(prettify(split_commit))
     with open(f"./debug/{sha}.4.pretty.json", "w") as f:
-        f.write(pretty(pretty_commit))
+        f.write(prettify(pretty_commit))
 
 
-def parse_logs(
-    output_dir=None, quiet=False, debug_parser=False, summary=False, pretty_print=False
+def _validate(
+    input: Optional[str] = None,
+    output: Optional[str] = None,
+    output_dir: Optional[str] = None,
+    quiet: bool = False,
+    debug: bool = False,
+    summary: Optional[str] = None,
+    pretty: bool = False,
 ):
-    assert debug_parser or not quiet or output_dir or summary
-    # If not, there is nothing to do
+    assert (
+        input == None or input == "-" or os.path.isfile(input) or os.path.isdir(input)
+    )
+    if output is not None:
+        assert isinstance(output, str) and len(output) > 0
+        assert os.path.isfile(output) or not os.path.exists(output)
+    if output_dir is not None:
+        assert isinstance(output_dir, str) and len(output_dir) > 0
+        assert os.path.isdir(output_dir) or not os.path.exists(output_dir)
+    assert quiet == True or quiet == False
+    assert debug == True or debug == False
+    if summary is not None:
+        assert isinstance(summary, str) and len(summary) > 0
+        assert os.path.isfile(summary) or not os.path.exists(summary)
+    assert pretty == True or pretty == False
+    return
 
-    if debug_parser:
+
+def _parse_logs(
+    input,
+    output_dir: Optional[str],
+    quiet: bool,
+    debug: bool,
+    summary: Optional[str],
+    pretty: bool,
+):
+    if debug:
         rm("./debug/")
         mkdir("./debug/")
         for raw_commit, split_commit, pretty_commit in parse_to_all_representations(
-            sys.stdin
+            input
         ):
             dump_commit(raw_commit, split_commit, pretty_commit)
             if not quiet:
-                if pretty_print:
-                    print(pretty(pretty_commit))
+                if pretty:
+                    print(prettify(pretty_commit))
                 else:
                     print(json.dumps(pretty_commit))
         return
 
-    for commit in parse(sys.stdin):
+    for commit in parse(input):
         if not summary and not quiet:
-            if pretty_print:
-                print(pretty(commit))
+            if pretty:
+                print(prettify(commit))
             else:
                 print(json.dumps(commit))
         if summary or output_dir:
@@ -245,15 +293,75 @@ def parse_logs(
     global_state.generate_summary()
 
     if summary:
-        print(pretty(global_state.summary))
+        print(prettify(global_state.summary))
     if output_dir:
         output_to_directory(output_dir)
+    pass
+
+
+class UserError(Exception):
+    pass
+
+
+def parse_logs(
+    input: Optional[str] = None,
+    output_dir: Optional[str] = None,
+    quiet: bool = False,
+    debug: bool = False,
+    summary: Optional[str] = None,
+    pretty: bool = False,
+):
+    _validate(
+        input=input,
+        output_dir=output_dir,
+        quiet=quiet,
+        debug=debug,
+        summary=summary,
+        pretty=pretty,
+    )
+
+    if input in (None, "-"):
+        input_file = sys.stdin
+    else:
+        if os.path.isdir(input):
+            process = subprocess.Popen(
+                ["git", "log", "-p", "--format=raw", "--show-signature", "--stat"],
+                cwd=input,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            global all_processes
+            all_processes.append(process)
+            input_file = process.stdout
+        else:
+            try:
+                input_file = open(input, "r")
+            except:
+                raise UserError(f"Could not open '{input}'.")
+
+    _parse_logs(
+        input=input_file,
+        output_dir=output_dir,
+        quiet=quiet,
+        debug=debug,
+        summary=summary,
+        pretty=pretty,
+    )
+    for process in all_processes:
+        process.wait()
 
 
 def get_args():
     parser = argparse.ArgumentParser(
         prog="glrp",
         description="Parses the output of 'git log -p --format=raw --show-signature --stat'",
+    )
+    parser.add_argument(
+        "input",
+        type=str,
+        nargs="?",
+        help="File to read input from or folder to run 'git' in",
     )
     parser.add_argument("--version", action="version", version=version_string())
     parser.add_argument(
@@ -269,15 +377,13 @@ def get_args():
     parser.add_argument(
         "-d",
         "--debug",
-        default=False,
         action="store_true",
-        help="Store debug information to ./debug/",
+        help="Enable debug information",
     )
     parser.add_argument(
         "--summary",
-        default=False,
-        action="store_true",
-        help="Print summary of commits",
+        type=str,
+        help="Filename for JSON summary",
     )
     parser.add_argument(
         "--pretty",
@@ -292,11 +398,12 @@ def get_args():
 def main():
     args = get_args()
     parse_logs(
+        input=args.input,
         output_dir=args.output_dir,
         quiet=args.quiet,
-        debug_parser=args.debug,
+        debug=args.debug,
         summary=args.summary,
-        pretty_print=args.pretty,
+        pretty=args.pretty,
     )
 
 

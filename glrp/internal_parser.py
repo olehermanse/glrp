@@ -41,7 +41,7 @@ def _reconfigure(input_stream):
     # encounter exceptions for commit messages / diffs with weird characters.
     # So we need to assume that sys.stdin is actually TextIOWrapper,
     # the assertion makes this assumption explicit and makes strict typecheckers like Pyright happy.
-    assert isinstance(input_stream, TextIOWrapper)
+    # assert isinstance(input_stream, TextIOWrapper)
     input_stream.reconfigure(errors="replace")
 
 

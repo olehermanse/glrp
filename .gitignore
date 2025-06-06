@@ -4,4 +4,7 @@
 __pycache__/
 /debug/
 /trusted/
-/core
+/glrp/VERSION
+*.egg-info
+/build/
+/venv/
