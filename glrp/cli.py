@@ -11,6 +11,7 @@ from glrp.version import string as version_string
 from glrp.utils import find, mkdir, rm, write_json, read_json
 from glrp.pretty import pretty as prettify
 from glrp.summary import CommitSummary, Person, Commit
+from glrp.compare import compare_summaries
 
 # Usage:
 # git log -p --format=raw --show-signature --stat | glrp
@@ -351,6 +352,7 @@ def compare_commits(compare):
     after = get_summary(b, ".after.json")
     assert after is not None
     print(f"Saved .after.json with stats from {after['counts']['commits']} commits")
+    compare_summaries(before, after)
 
 
 def combine_summaries(filenames):
