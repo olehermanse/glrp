@@ -10,3 +10,6 @@ __pycache__/
 /venv/
 /tests/shell/debug/
 /tests/shell/out/
+.before.json
+.after.json
+.combined.json

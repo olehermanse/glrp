@@ -10,6 +10,7 @@ from glrp.internal_parser import parse, parse_to_all_representations
 from glrp.version import string as version_string
 from glrp.utils import find, mkdir, rm, write_json, read_json
 from glrp.pretty import pretty as prettify
+from glrp.summary import CommitSummary, Person, Commit
 
 # Usage:
 # git log -p --format=raw --show-signature --stat | glrp
@@ -26,9 +27,7 @@ all_processes = []
 class GlobalState:
     def __init__(self):
         self.quiet = False
-        self.emails = {}
-        self.names = {}
-        self.fingerprints = {}
+
         self.unsigneds = {}
 
         self.counts = {
@@ -39,12 +38,7 @@ class GlobalState:
         }
 
         self.commits = {}
-
-        self.by_name = {}
-        self.by_email = {}
-        self.by_fingerprint = {}
-        self.by_id = {}
-        self.summary = {}
+        self.summary = CommitSummary()
         self.trusted = None
 
         self.set_trusted_fingerprints()
@@ -63,83 +57,12 @@ class GlobalState:
     def set_trusted_fingerprints(self):
         self.trusted = list(self._get_trusted_fingerprints())
 
-    def record_email(self, email):
-        if email not in self.emails:
-            self.emails[email] = 1
-            # print("New email: " + email)
-        else:
-            self.emails[email] += 1
-
-    def record_name(self, name):
-        if name not in self.names:
-            self.names[name] = 1
-            # print("New name: " + name)
-        else:
-            self.names[name] += 1
-
-    def record_fingerprint(self, fingerprint):
-        if fingerprint not in self.fingerprints:
-            self.fingerprints[fingerprint] = 1
-            # print("New fingerprint: " + fingerprint)
-        else:
-            self.fingerprints[fingerprint] += 1
-
-    def record_unsigned(self, unsigned):
-        if unsigned not in self.unsigneds:
-            self.unsigneds[unsigned] = 1
-            # print("New unsigned: " + unsigned)
-        else:
-            self.unsigneds[unsigned] += 1
-
-    def record_user(self, user):
-        name = user["name"]
-        email = user["email"]
-        id = user["id"]
-
-        if name not in self.by_name:
-            self.by_name[name] = {"emails": [], "fingerprints": []}
-        if email not in self.by_email:
-            self.by_email[email] = {"names": [], "fingerprints": []}
-        if id not in self.by_id:
-            self.by_id[id] = {"fingerprints": []}
-
-        if email not in self.by_name[name]["emails"]:
-            self.by_name[name]["emails"].append(email)
-
-        if name not in self.by_email[email]["names"]:
-            self.by_email[email]["names"].append(name)
-
-    def record_by(self, commit):
-        self.record_user(commit["author"])
-        self.record_user(commit["committer"])
-        id = commit["committer"]["id"]
-        fingerprint = commit.get("fingerprint", "unsigned")
-        if fingerprint != "unsigned":
-            if fingerprint not in self.by_fingerprint:
-                self.by_fingerprint[fingerprint] = {"ids": []}
-            if id not in self.by_fingerprint[fingerprint]["ids"]:
-                self.by_fingerprint[fingerprint]["ids"].append(id)
-                if fingerprint not in self.by_id[id]["fingerprints"]:
-                    self.by_id[id]["fingerprints"].append(fingerprint)
-
     def record_commit(self, commit):
         self.commits[commit["commit"]] = commit
-        self.record_by(commit)
-        self.record_email(commit["author"]["email"])
 
-        if commit["author"]["email"] != commit["committer"]["email"]:
-            self.record_email(commit["committer"]["email"])
-
-        self.record_name(commit["author"]["name"])
-        if commit["author"]["name"] != commit["committer"]["name"]:
-            self.record_name(commit["committer"]["name"])
-
-        if "fingerprint" in commit:
-            self.record_fingerprint(
-                commit["committer"]["id"] + " " + commit["fingerprint"]
-            )
-        else:
-            self.record_unsigned(commit["committer"]["id"])
+        commit_obj = Commit.from_json(commit)
+        summary = CommitSummary(commit_obj)
+        self.summary = self.summary + summary
 
         if "diff" not in commit:
             self.counts["empty"].append(commit)
@@ -149,38 +72,6 @@ class GlobalState:
             self.counts["signed-untrusted"].append(commit)
         else:
             self.counts["unsigned"].append(commit)
-
-    def generate_summary(self):
-        self.by_email = {
-            k: v
-            for k, v in self.by_email.items()
-            if len(v["names"]) > 1 or len(v["fingerprints"]) > 1
-        }
-        self.by_name = {
-            k: v
-            for k, v in self.by_name.items()
-            if len(v["emails"]) > 1 or len(v["fingerprints"]) > 1
-        }
-        self.by_id = {k: v for k, v in self.by_id.items() if len(v["fingerprints"]) > 1}
-        self.by_fingerprint = {
-            k: v for k, v in self.by_fingerprint.items() if len(v["ids"]) > 1
-        }
-        self.summary = {
-            "emails": self.emails,
-            "names": self.names,
-            "fingerprints": self.fingerprints,
-            "unsigneds": self.unsigneds,
-            "commit_counts": {
-                "empty": len(self.counts["empty"]),
-                "signed-trusted": len(self.counts["signed-trusted"]),
-                "signed-untrusted": len(self.counts["signed-untrusted"]),
-                "unsigned": len(self.counts["unsigned"]),
-            },
-            "by_name": self.by_name,
-            "by_email": self.by_email,
-            "by_id": self.by_id,
-            "by_fingerprint": self.by_fingerprint,
-        }
 
 
 global_state = GlobalState()
@@ -297,11 +188,9 @@ def _parse_logs(
     if not summary and not output_dir:
         return
 
-    global_state.generate_summary()
-
     if summary:
         with open(summary, "w") as f:
-            f.write(prettify(global_state.summary))
+            f.write(prettify(global_state.summary.to_dict()))
     if output_dir:
         output_to_directory(output_dir)
     pass
@@ -419,13 +308,18 @@ def get_args():
 
 
 def validate_args(args):
-    if args.compare:
-        if args.input:
-            raise UserError("The --compare option cannot be used with --input")
-        if len(args.compare) < 3 or "," not in args.compare:
-            raise UserError(
-                "The --compare option requires two comma separated commit hashes / ranges"
-            )
+    if args.compare and args.combine:
+        raise UserError("The --combine option cannot be used with --compare")
+    if args.input and (args.combine or args.compare):
+        raise UserError("The input argument cannot be used with --compare or --combine")
+    if args.compare and (len(args.compare) < 3 or "," not in args.compare):
+        raise UserError(
+            "The --compare option requires two comma separated commit hashes / ranges"
+        )
+    if args.combine and (len(args.combine) < 3 or "," not in args.combine):
+        raise UserError(
+            "The --combine option requires two or more comma separated JSON filenames"
+        )
     return
 
 
@@ -445,72 +339,26 @@ def get_summary(ref, fname):
         commit_range=ref,
     )
     global_state = GlobalState()
-    return read_json(ref)
+    return read_json(fname)
 
 
 def compare_commits(compare):
     global global_state
     a, b = compare.split(",")
     before = get_summary(a, ".before.json")
+    assert before is not None
+    print(f"Saved .before.json with stats from {before['counts']['commits']} commits")
     after = get_summary(b, ".after.json")
-
-
-def combine_two(a, b):
-    for key in b:
-        assert key in a
-    for key in a:
-        assert key in b
-    combined = deepcopy(a)
-
-    for email, count in b["emails"].items():
-        if email not in combined["emails"]:
-            combined["emails"][email] = count
-        else:
-            combined["emails"][email] += count
-
-    for name, count in b["names"].items():
-        if name not in combined["names"]:
-            combined["names"][name] = count
-        else:
-            combined["names"][name] += count
-
-    for fingerprint, count in b["fingerprints"].items():
-        if fingerprint not in combined["fingerprints"]:
-            combined["fingerprints"][fingerprint] = count
-        else:
-            combined["fingerprints"][fingerprint] += count
-
-    # TODO unsigneds
-
-    for key, count in b["commit_counts"].items():
-        assert key in combined["commit_counts"]
-        combined["commit_counts"][key] += count
-    return combined
-
-    for name, data in b["by_name"]:
-        if name not in combined:
-            combined[name] = data
-        else:
-            for email in data["emails"]:
-                if email not in combined[name]["emails"]:
-                    combined[name]["emails"].append(email)
-            for fingerprint in data["fingerprints"]:
-                if fingerprint not in combined[name]["fingerprints"]:
-                    combined[name]["fingerprints"].append(fingerprint)
-
-    # TODO by_email
-    # TODO by_id
-    # TODO by_fingerprint
-
-    return combined
+    assert after is not None
+    print(f"Saved .after.json with stats from {after['counts']['commits']} commits")
 
 
 def combine_summaries(filenames):
-    summaries = [read_json(f) for f in filenames.split(",")]
+    summaries = [CommitSummary(filename=f) for f in filenames.split(",")]
     combined = summaries[0]
     for summary in summaries[1:]:
-        combined = combine_two(combined, summary)
-    print(prettify(combined))
+        combined = combined + summary
+    print(prettify(combined.to_dict()))
 
 
 def main():

@@ -90,6 +90,35 @@ You can use shell redirection to print to file instead of standard output:
 glrp . > output.txt
 ```
 
+### Compare
+
+If you want to compare the stats for 2 branches, use the `--compare` flag:
+
+```bash
+glrp --compare main,feature...main
+```
+
+(This assumes that feature is based on main).
+
+Alternately, you can compare the 5 last commits:
+
+```bash
+glrp --compare main~5,main...main~5
+```
+
+This generates a `.before.json` and `.after.json` file, which can be used to compare those 2 ranges.
+
+### Combine
+
+You can combine summary files using the `--combine` flag:
+
+```bash
+glrp --combine .before.json,.after.json > combined.json
+```
+
+This is useful for example after generating summaries for different repos.
+You can use it to create a global summary of all commits in all repos of an organization.
+
 ## Important notes
 
 **Note:** This tool is meant specifically as a parser for the command shown above, not as a generic parser for all the different things `git log` can output.
