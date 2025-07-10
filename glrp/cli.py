@@ -4,16 +4,21 @@ import sys
 import argparse
 import json
 from typing import Optional
+from copy import deepcopy
 
 from glrp.internal_parser import parse, parse_to_all_representations
 from glrp.version import string as version_string
-from glrp.utils import find, mkdir, rm, write_json
+from glrp.utils import find, mkdir, rm, write_json, read_json
 from glrp.pretty import pretty as prettify
 
 # Usage:
 # git log -p --format=raw --show-signature --stat | glrp
 #
 # glrp .
+#
+# glrp --compare main~2,main...main~2
+#
+# glrp --combine .before.json,.after.json
 
 all_processes = []
 
@@ -313,6 +318,7 @@ def parse_logs(
     debug: bool = False,
     summary: Optional[str] = None,
     pretty: bool = False,
+    commit_range: Optional[str] = None,
 ):
     _validate(
         input=input,
@@ -328,7 +334,12 @@ def parse_logs(
     else:
         if os.path.isdir(input):
             process = subprocess.Popen(
-                ["git", "log", "-p", "--format=raw", "--show-signature", "--stat"],
+                (
+                    ["git", "log", "-p", "--format=raw", "--show-signature", "--stat"]
+                    + [commit_range]
+                    if commit_range
+                    else []
+                ),
                 cwd=input,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -388,6 +399,16 @@ def get_args():
         help="Filename for JSON summary",
     )
     parser.add_argument(
+        "--compare",
+        type=str,
+        help="Two comma separated commit hashes / ranges to compare",
+    )
+    parser.add_argument(
+        "--combine",
+        type=str,
+        help="Comma separated list of summary filenames to combine",
+    )
+    parser.add_argument(
         "--pretty",
         default=False,
         action="store_true",
@@ -397,8 +418,110 @@ def get_args():
     return args
 
 
+def validate_args(args):
+    if args.compare:
+        if args.input:
+            raise UserError("The --compare option cannot be used with --input")
+        if len(args.compare) < 3 or "," not in args.compare:
+            raise UserError(
+                "The --compare option requires two comma separated commit hashes / ranges"
+            )
+    return
+
+
+def get_summary(ref, fname):
+    global global_state
+    if ref.endswith(".json"):
+        r = read_json(ref)
+        write_json(r, fname)
+        return r
+    parse_logs(
+        input=".",
+        output_dir=None,
+        quiet=False,
+        debug=False,
+        summary=fname,
+        pretty=False,
+        commit_range=ref,
+    )
+    global_state = GlobalState()
+    return read_json(ref)
+
+
+def compare_commits(compare):
+    global global_state
+    a, b = compare.split(",")
+    before = get_summary(a, ".before.json")
+    after = get_summary(b, ".after.json")
+
+
+def combine_two(a, b):
+    for key in b:
+        assert key in a
+    for key in a:
+        assert key in b
+    combined = deepcopy(a)
+
+    for email, count in b["emails"].items():
+        if email not in combined["emails"]:
+            combined["emails"][email] = count
+        else:
+            combined["emails"][email] += count
+
+    for name, count in b["names"].items():
+        if name not in combined["names"]:
+            combined["names"][name] = count
+        else:
+            combined["names"][name] += count
+
+    for fingerprint, count in b["fingerprints"].items():
+        if fingerprint not in combined["fingerprints"]:
+            combined["fingerprints"][fingerprint] = count
+        else:
+            combined["fingerprints"][fingerprint] += count
+
+    # TODO unsigneds
+
+    for key, count in b["commit_counts"].items():
+        assert key in combined["commit_counts"]
+        combined["commit_counts"][key] += count
+    return combined
+
+    for name, data in b["by_name"]:
+        if name not in combined:
+            combined[name] = data
+        else:
+            for email in data["emails"]:
+                if email not in combined[name]["emails"]:
+                    combined[name]["emails"].append(email)
+            for fingerprint in data["fingerprints"]:
+                if fingerprint not in combined[name]["fingerprints"]:
+                    combined[name]["fingerprints"].append(fingerprint)
+
+    # TODO by_email
+    # TODO by_id
+    # TODO by_fingerprint
+
+    return combined
+
+
+def combine_summaries(filenames):
+    summaries = [read_json(f) for f in filenames.split(",")]
+    combined = summaries[0]
+    for summary in summaries[1:]:
+        combined = combine_two(combined, summary)
+    print(prettify(combined))
+
+
 def main():
     args = get_args()
+    validate_args(args)
+    if args.compare:
+        compare_commits(args.compare)
+        return
+    if args.combine:
+        combine_summaries(args.combine)
+        return
     parse_logs(
         input=args.input,
         output_dir=args.output_dir,
