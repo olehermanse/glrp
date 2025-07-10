@@ -1,8 +1,8 @@
 import sys
 
-from cfbs.pretty import pretty
-
 sys.path.append(".")
+
+from glrp.pretty import pretty
 import glrp.internal_parser as internal_parser
 
 
