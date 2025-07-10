@@ -34,7 +34,7 @@ class Commit:
         author = Person(json_obj["author"]["id"])
         committer = Person(json_obj["committer"]["id"])
         message = json_obj["message"]
-        fingerprint = json_obj["fingerprint"]
+        fingerprint = json_obj.get("fingerprint", None)
         return Commit(author, committer, message, fingerprint)
 
 

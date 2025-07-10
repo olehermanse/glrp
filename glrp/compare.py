@@ -1,13 +1,8 @@
 def compare_summaries(before, after):
-    for email in after["emails"]:
-        if email not in before["emails"]:
-            print(f"Note: New email {email}")
-    for name in after["names"]:
-        if name not in before["names"]:
-            print(f"Note: New name {name}")
     for fingerprint in after["fingerprints"]:
         if fingerprint not in before["fingerprints"]:
-            print(f"Note: New fingerprint {fingerprint}")
+            id = after["fingerprints"][fingerprint]["ids"][0]
+            print(f"Note: New fingerprint {fingerprint} ({id})")
     for id in after["ids"]:
         if id not in before["ids"]:
             print(f"Note: New ID {id}")
