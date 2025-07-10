@@ -24,8 +24,6 @@
 # SOFTWARE.
 
 import json
-import re
-from copy import copy
 from collections import OrderedDict
 
 

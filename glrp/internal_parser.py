@@ -30,7 +30,6 @@ Note: The parsing is lossy, we reconfigure the input stream to replace unicode
 """
 
 import sys
-from io import TextIOWrapper
 
 
 def _reconfigure(input_stream):
@@ -152,7 +151,7 @@ def raw_commits_to_split_commits(raw_commits):
         assert len(first_line) == len("commit 680e160eef58249b1b896512d50f6342ad325f01")
         assert first_line.startswith("commit ")
         commit["commit"] = [first_line]
-        lines = (l for l in raw[1:])
+        lines = (line for line in raw[1:])
         line = next(lines)
         while line and line.startswith("gpg: "):
             if "gpg" not in commit:
@@ -174,7 +173,7 @@ def raw_commits_to_split_commits(raw_commits):
             line = next(lines)
 
         while line and line.startswith("parent "):
-            if not "parent" in commit:
+            if "parent" not in commit:
                 commit["parent"] = []
             commit["parent"].append(line)
             line = next(lines)

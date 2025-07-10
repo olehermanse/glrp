@@ -5,7 +5,7 @@ from copy import deepcopy
 
 class Person:
     def __init__(self, id_string: str):
-        assert type(id_string) == str
+        assert type(id_string) is str
         assert len(id_string) > 0
         assert id_string.count(" <") == 1, "Invalid id_string"
         assert id_string.count(">") == 1, "Invalid id_string"

@@ -4,13 +4,12 @@ import sys
 import argparse
 import json
 from typing import Optional
-from copy import deepcopy
 
 from glrp.internal_parser import parse, parse_to_all_representations
 from glrp.version import string as version_string
 from glrp.utils import find, mkdir, rm, write_json, read_json
 from glrp.pretty import pretty as prettify
-from glrp.summary import CommitSummary, Person, Commit
+from glrp.summary import CommitSummary, Commit
 from glrp.compare import compare_summaries
 
 # Usage:
@@ -138,7 +137,7 @@ def _validate(
     pretty: bool = False,
 ):
     assert (
-        input == None or input == "-" or os.path.isfile(input) or os.path.isdir(input)
+        input is None or input == "-" or os.path.isfile(input) or os.path.isdir(input)
     )
     if output is not None:
         assert isinstance(output, str) and len(output) > 0
@@ -146,12 +145,12 @@ def _validate(
     if output_dir is not None:
         assert isinstance(output_dir, str) and len(output_dir) > 0
         assert os.path.isdir(output_dir) or not os.path.exists(output_dir)
-    assert quiet == True or quiet == False
-    assert debug == True or debug == False
+    assert quiet is True or quiet is False
+    assert debug is True or debug is False
     if summary is not None:
         assert isinstance(summary, str) and len(summary) > 0
         assert os.path.isfile(summary) or not os.path.exists(summary)
-    assert pretty == True or pretty == False
+    assert pretty is True or pretty is False
     return
 
 
@@ -344,7 +343,6 @@ def get_summary(ref, fname):
 
 
 def compare_commits(compare):
-    global global_state
     a, b = compare.split(",")
     before = get_summary(a, ".before.json")
     assert before is not None

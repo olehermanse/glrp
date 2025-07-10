@@ -14,7 +14,7 @@ def compare_summaries(before, after):
 
     # Look through emails, warn about changes in fingerprints:
     for email in (e for e in after["emails"] if e in before["emails"]):
-        if not "fingerprints" in after["emails"][email]:
+        if "fingerprints" not in after["emails"][email]:
             continue
         for fingerprint in after["emails"][email]["fingerprints"]:
             if (
