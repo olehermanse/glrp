@@ -225,9 +225,7 @@ def parse_logs(
             process = subprocess.Popen(
                 (
                     ["git", "log", "-p", "--format=raw", "--show-signature", "--stat"]
-                    + [commit_range]
-                    if commit_range
-                    else []
+                    + ([commit_range] if commit_range else [])
                 ),
                 cwd=input,
                 stdout=subprocess.PIPE,
