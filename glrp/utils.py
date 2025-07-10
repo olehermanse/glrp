@@ -24,6 +24,7 @@ import os
 import sys
 import json
 
+from shutil import rmtree
 from collections import OrderedDict
 from typing import Union
 
