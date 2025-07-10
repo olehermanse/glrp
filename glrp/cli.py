@@ -3,7 +3,7 @@ import os
 import sys
 import argparse
 import json
-from typing import Optional
+from typing import Optional, List
 
 from glrp.internal_parser import parse, parse_to_all_representations
 from glrp.version import string as version_string
@@ -207,7 +207,7 @@ def parse_logs(
     debug: bool = False,
     summary: Optional[str] = None,
     pretty: bool = False,
-    commit_range: Optional[str] = None,
+    git_extra: Optional[List[str]] = None,
 ):
     _validate(
         input=input,
@@ -225,7 +225,7 @@ def parse_logs(
             process = subprocess.Popen(
                 (
                     ["git", "log", "-p", "--format=raw", "--show-signature", "--stat"]
-                    + ([commit_range] if commit_range else [])
+                    + (git_extra if git_extra else [])
                 ),
                 cwd=input,
                 stdout=subprocess.PIPE,
@@ -310,10 +310,6 @@ def validate_args(args):
         raise UserError("The --combine option cannot be used with --compare")
     if args.input and (args.combine or args.compare):
         raise UserError("The input argument cannot be used with --compare or --combine")
-    if args.compare and (len(args.compare) < 3 or "," not in args.compare):
-        raise UserError(
-            "The --compare option requires two comma separated commit hashes / ranges"
-        )
     if args.combine and (len(args.combine) < 3 or "," not in args.combine):
         raise UserError(
             "The --combine option requires two or more comma separated JSON filenames"
@@ -321,12 +317,14 @@ def validate_args(args):
     return
 
 
-def get_summary(ref, fname):
+def get_summary(ref: str | List[str], fname):
     global global_state
-    if ref.endswith(".json"):
+    if isinstance(ref, str) and ref.endswith(".json"):
         r = read_json(ref)
         write_json(r, fname)
         return r
+    if isinstance(ref, str):
+        ref = [ref]
     parse_logs(
         input=".",
         output_dir=None,
@@ -334,14 +332,13 @@ def get_summary(ref, fname):
         debug=False,
         summary=fname,
         pretty=False,
-        commit_range=ref,
+        git_extra=ref,
     )
     global_state = GlobalState()
     return read_json(fname)
 
 
-def compare_commits(compare):
-    a, b = compare.split(",")
+def _compare_commits(a, b):
     before = get_summary(a, ".before.json")
     assert before is not None
     print(f"Saved .before.json with stats from {before['counts']['commits']} commits")
@@ -349,6 +346,29 @@ def compare_commits(compare):
     assert after is not None
     print(f"Saved .after.json with stats from {after['counts']['commits']} commits")
     compare_summaries(before, after)
+
+
+def intify(s: str) -> int | None:
+    try:
+        return int(s)
+    except ValueError:
+        return None
+
+
+def compare_commits(compare):
+    if "," in compare:
+        a, b = compare.split(",")
+        a = [a]
+        b = [b]
+        return _compare_commits(a, b)
+    n = intify(compare)
+    if n is not None:
+        a = [f"--skip={n}"]
+        b = [f"--max-count={n}"]
+        return _compare_commits(a, b)
+    a = [f"--until={compare}"]
+    b = [f"--since={compare}"]
+    return _compare_commits(a, b)
 
 
 def combine_summaries(filenames):
