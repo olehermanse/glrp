@@ -11,7 +11,9 @@ from glrp.utils import find, mkdir, rm, write_json
 from glrp.pretty import pretty as prettify
 
 # Usage:
-# git log -p --format=raw --show-signature --stat | python3 git_log_raw_parser.py
+# git log -p --format=raw --show-signature --stat | glrp
+#
+# glrp .
 
 all_processes = []
 
@@ -293,7 +295,8 @@ def _parse_logs(
     global_state.generate_summary()
 
     if summary:
-        print(prettify(global_state.summary))
+        with open(summary, "w") as f:
+            f.write(prettify(global_state.summary))
     if output_dir:
         output_to_directory(output_dir)
     pass
