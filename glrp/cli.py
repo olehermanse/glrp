@@ -7,8 +7,8 @@ from typing import Optional
 
 from glrp.internal_parser import parse, parse_to_all_representations
 from glrp.version import string as version_string
-from cfbs.utils import find, mkdir, rm, write_json
-from cfbs.pretty import pretty as prettify
+from glrp.utils import find, mkdir, rm, write_json
+from glrp.pretty import pretty as prettify
 
 # Usage:
 # git log -p --format=raw --show-signature --stat | python3 git_log_raw_parser.py

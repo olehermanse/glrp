@@ -45,9 +45,5 @@ setuptools.setup(
     ],
     python_requires=">=3.6",
     entry_points={"console_scripts": ["glrp = glrp.cli:main"]},
-    install_requires=[
-        "cf-remote >= 0.6.4",
-        "cfbs >= 4.4.0",
-        "requests >= 2.32.2",
-    ],
+    install_requires=[],
 )

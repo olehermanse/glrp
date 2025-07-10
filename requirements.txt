@@ -1,4 +1,1 @@
-cf-remote==0.6.4
-cfbs==4.4.0
-requests==2.32.2
 setuptools==80.9.0
