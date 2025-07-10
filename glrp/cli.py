@@ -100,7 +100,7 @@ def output_to_directory(output_dir):
     mkdir(f"{output_dir}", exist_ok=True)
 
     with open(f"{output_dir}summary.json", "w") as f:
-        f.write(prettify(global_state.summary) + "\n")
+        f.write(prettify(global_state.summary.to_dict()) + "\n")
 
     index = 0
     for sha, commit in global_state.commits.items():
