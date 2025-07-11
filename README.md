@@ -87,7 +87,7 @@ Output from the `git` command will be parsed instead of standard input.
 You can use shell redirection to print to file instead of standard output:
 
 ```bash
-glrp . > output.txt
+glrp . > output.jsonl
 ```
 
 ### Compare

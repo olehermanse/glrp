@@ -133,7 +133,7 @@ def _validate(
     output_dir: Optional[str] = None,
     quiet: bool = False,
     debug: bool = False,
-    summary: Optional[str] = None,
+    summarize: bool = False,
     pretty: bool = False,
 ):
     assert (
@@ -147,9 +147,7 @@ def _validate(
         assert os.path.isdir(output_dir) or not os.path.exists(output_dir)
     assert quiet is True or quiet is False
     assert debug is True or debug is False
-    if summary is not None:
-        assert isinstance(summary, str) and len(summary) > 0
-        assert os.path.isfile(summary) or not os.path.exists(summary)
+    assert summarize is True or summarize is False
     assert pretty is True or pretty is False
     return
 
@@ -159,7 +157,7 @@ def _parse_logs(
     output_dir: Optional[str],
     quiet: bool,
     debug: bool,
-    summary: Optional[str],
+    summarize: bool,
     pretty: bool,
 ):
     if debug:
@@ -177,23 +175,26 @@ def _parse_logs(
         return
 
     for commit in parse(input):
-        if not summary and not quiet:
+        if not summarize and not quiet:
             if pretty:
                 print(prettify(commit))
             else:
                 print(json.dumps(commit))
-        if summary or output_dir:
+        if summarize or output_dir:
             global_state.record_commit(commit)
 
-    if not summary and not output_dir:
+    if not summarize and not output_dir:
         return
 
-    if summary:
-        with open(summary, "w") as f:
-            f.write(prettify(global_state.summary.to_dict()))
-    if output_dir:
-        output_to_directory(output_dir)
-    pass
+    if summarize:
+        assert not output_dir
+        r = global_state.summary.to_dict()
+        if not quiet:
+            print(prettify(r))
+        return r
+
+    assert output_dir
+    output_to_directory(output_dir)
 
 
 class UserError(Exception):
@@ -205,7 +206,7 @@ def parse_logs(
     output_dir: Optional[str] = None,
     quiet: bool = False,
     debug: bool = False,
-    summary: Optional[str] = None,
+    summarize: bool = False,
     pretty: bool = False,
     git_extra: Optional[List[str]] = None,
 ):
@@ -214,7 +215,7 @@ def parse_logs(
         output_dir=output_dir,
         quiet=quiet,
         debug=debug,
-        summary=summary,
+        summarize=summarize,
         pretty=pretty,
     )
 
@@ -240,16 +241,17 @@ def parse_logs(
             except:
                 raise UserError(f"Could not open '{input}'.")
 
-    _parse_logs(
+    r = _parse_logs(
         input=input_file,
         output_dir=output_dir,
         quiet=quiet,
         debug=debug,
-        summary=summary,
+        summarize=summarize,
         pretty=pretty,
     )
     for process in all_processes:
         process.wait()
+    return r
 
 
 def get_args():
@@ -281,9 +283,10 @@ def get_args():
         help="Enable debug information",
     )
     parser.add_argument(
-        "--summary",
-        type=str,
-        help="Filename for JSON summary",
+        "--summarize",
+        default=False,
+        action="store_true",
+        help="Print a JSON summary instead of individual commits",
     )
     parser.add_argument(
         "--compare",
@@ -306,6 +309,10 @@ def get_args():
 
 
 def validate_args(args):
+    if args.summarize and (args.compare or args.combine):
+        raise UserError(
+            "The --summarize option cannot be used with --compare or --combine"
+        )
     if args.compare and args.combine:
         raise UserError("The --combine option cannot be used with --compare")
     if args.input and (args.combine or args.compare):
@@ -317,33 +324,34 @@ def validate_args(args):
     return
 
 
-def get_summary(ref: str | List[str], fname):
+def get_summary(ref: str | List[str]):
     global global_state
     if isinstance(ref, str) and ref.endswith(".json"):
         r = read_json(ref)
-        write_json(r, fname)
         return r
     if isinstance(ref, str):
         ref = [ref]
-    parse_logs(
+    r = parse_logs(
         input=".",
         output_dir=None,
-        quiet=False,
+        quiet=True,
         debug=False,
-        summary=fname,
+        summarize=True,
         pretty=False,
         git_extra=ref,
     )
     global_state = GlobalState()
-    return read_json(fname)
+    return r
 
 
 def _compare_commits(a, b):
-    before = get_summary(a, ".before.json")
+    before = get_summary(a)
     assert before is not None
+    write_json(".before.json", before)
     print(f"Saved .before.json with stats from {before['counts']['commits']} commits")
-    after = get_summary(b, ".after.json")
+    after = get_summary(b)
     assert after is not None
+    write_json(".after.json", after)
     print(f"Saved .after.json with stats from {after['counts']['commits']} commits")
     compare_summaries(before, after)
 
@@ -393,7 +401,7 @@ def main():
         output_dir=args.output_dir,
         quiet=args.quiet,
         debug=args.debug,
-        summary=args.summary,
+        summarize=args.summarize,
         pretty=args.pretty,
     )
 
