@@ -100,7 +100,7 @@ glrp --compare main,feature...main
 
 (This assumes that feature is based on main).
 
-Alternately, you can compare the 5 last commits:
+Alternately, you can compare commit ranges:
 
 ```bash
 glrp --compare main~5,main...main~5
@@ -118,6 +118,15 @@ glrp --combine .before.json,.after.json > combined.json
 
 This is useful for example after generating summaries for different repos.
 You can use it to create a global summary of all commits in all repos of an organization.
+
+### Trusted GPG fingerprints
+
+The summarize functionality can be used to classify different kinds of signed commits.
+Use the `--trusted` flag to give a path to a folder containing trusted gpg key fingerprints.
+
+```
+glrp --summarize . --trusted ~/.password-store/.pub-keys/
+```
 
 ## Important notes
 

@@ -26,27 +26,13 @@ all_processes = []
 
 class GlobalState:
     def __init__(self):
-        self.quiet = False
+        self.summary = CommitSummary()  # Built up by adding
+        self.commits = {}  # All commits, keyed by SHA
+        self.trusted = None  # Set by --trusted argument
 
-        self.unsigneds = {}
-
-        self.counts = {
-            "empty": [],
-            "unsigned": [],
-            "signed-trusted": [],
-            "signed-untrusted": [],
-        }
-
-        self.commits = {}
-        self.summary = CommitSummary()
-        self.trusted = None
-
-        self.set_trusted_fingerprints()
-
-    def _get_trusted_fingerprints(self):
-        if not os.path.isdir("trusted"):
-            return
-        for file in find("trusted", extension=".fp"):
+    def _get_fingerprints(self, folder: str):
+        assert os.path.isdir(folder)
+        for file in find(folder, extension=".fp"):
             with open(file, "r") as f:
                 for line in f:
                     line = line.strip()
@@ -54,24 +40,18 @@ class GlobalState:
                     if line:
                         yield line
 
-    def set_trusted_fingerprints(self):
-        self.trusted = list(self._get_trusted_fingerprints())
+    def set_trusted_fingerprints(self, folder: str):
+        self.trusted = list(self._get_fingerprints(folder))
+        print(f"Trusting {len(self.trusted)} fingerprints")
+        for fingerprint in self.trusted:
+            print(fingerprint)
 
     def record_commit(self, commit):
         self.commits[commit["commit"]] = commit
 
         commit_obj = Commit.from_json(commit)
-        summary = CommitSummary(commit_obj)
+        summary = CommitSummary(commit_obj, trusted=self.trusted)
         self.summary = self.summary + summary
-
-        if "diff" not in commit:
-            self.counts["empty"].append(commit)
-        elif "fingerprint" in commit and commit["fingerprint"] in self.trusted:
-            self.counts["signed-trusted"].append(commit)
-        elif "fingerprint" in commit and commit["fingerprint"] not in self.trusted:
-            self.counts["signed-untrusted"].append(commit)
-        else:
-            self.counts["unsigned"].append(commit)
 
 
 global_state = GlobalState()
@@ -159,7 +139,10 @@ def _parse_logs(
     debug: bool,
     summarize: bool,
     pretty: bool,
+    trusted: Optional[str],
 ):
+    if trusted:
+        global_state.set_trusted_fingerprints(trusted)
     if debug:
         rm("./debug/", missing_ok=True)
         mkdir("./debug/", exist_ok=False)
@@ -209,6 +192,7 @@ def parse_logs(
     summarize: bool = False,
     pretty: bool = False,
     git_extra: Optional[List[str]] = None,
+    trusted: Optional[str] = None,
 ):
     _validate(
         input=input,
@@ -248,6 +232,7 @@ def parse_logs(
         debug=debug,
         summarize=summarize,
         pretty=pretty,
+        trusted=trusted,
     )
     for process in all_processes:
         process.wait()
@@ -267,7 +252,12 @@ def get_args():
     )
     parser.add_argument("--version", action="version", version=version_string())
     parser.add_argument(
-        "-o", "--output-dir", help="Output commits to a folder structure"
+        "-o", "--output-dir", type=str, help="Output commits to a folder structure"
+    )
+    parser.add_argument(
+        "--trusted",
+        type=str,
+        help="Path to folder of trusted GPG keys, stored in .fp files",
     )
     parser.add_argument(
         "-q",
@@ -321,6 +311,29 @@ def validate_args(args):
         raise UserError(
             "The --combine option requires two or more comma separated JSON filenames"
         )
+    if args.trusted:
+        if not os.path.exists(args.trusted):
+            raise UserError(
+                "The --trusted argument must be a path to a folder containing .fp files"
+                + f" - '{args.trusted}' does not exist"
+            )
+        if not os.path.isdir(args.trusted):
+            raise UserError(
+                "The --trusted argument must be a path to a folder containing .fp files"
+                + f" - '{args.trusted}' is not a directory"
+            )
+        files = find(
+            args.trusted,
+            recursive=False,
+            directories=False,
+            files=True,
+            extension=".fp",
+        )
+        if next(files, None) is None:
+            raise UserError(
+                "The --trusted argument must be a path to a folder containing .fp files"
+                + f" - No .fp files found in '{args.trusted}'"
+            )
     return
 
 
@@ -403,6 +416,7 @@ def main():
         debug=args.debug,
         summarize=args.summarize,
         pretty=args.pretty,
+        trusted=args.trusted,
     )
 
 
