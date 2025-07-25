@@ -6,7 +6,13 @@ def test_summary_to_dict_empty():
     summary = CommitSummary()
 
     expected = {
-        "counts": {"commits": 0},
+        "counts": {
+            "commits": 0,
+            "signed": 0,
+            "unsigned": 0,
+            "trusted": 0,
+            "untrusted": 0,
+        },
         "emails": {},
         "names": {},
         "fingerprints": {},
@@ -52,10 +58,22 @@ def test_commit_summary():
     commit = Commit(john, john, "Initial commit")
     summary = CommitSummary(commit)
     assert summary.to_dict() == {
-        "counts": {"commits": 1},
+        "counts": {
+            "commits": 1,
+            "signed": 0,
+            "unsigned": 1,
+            "trusted": 0,
+            "untrusted": 0,
+        },
         "emails": {
             "john.doe@example.com": {
-                "commits": 1,
+                "counts": {
+                    "commits": 1,
+                    "signed": 0,
+                    "unsigned": 1,
+                    "trusted": 0,
+                    "untrusted": 0,
+                },
                 "names": ["John Doe"],
                 "ids": ["John Doe <john.doe@example.com>"],
                 "fingerprints": [],
@@ -63,7 +81,13 @@ def test_commit_summary():
         },
         "names": {
             "John Doe": {
-                "commits": 1,
+                "counts": {
+                    "commits": 1,
+                    "signed": 0,
+                    "unsigned": 1,
+                    "trusted": 0,
+                    "untrusted": 0,
+                },
                 "emails": ["john.doe@example.com"],
                 "ids": ["John Doe <john.doe@example.com>"],
                 "fingerprints": [],
@@ -72,7 +96,13 @@ def test_commit_summary():
         "fingerprints": {},
         "ids": {
             "John Doe <john.doe@example.com>": {
-                "commits": 1,
+                "counts": {
+                    "commits": 1,
+                    "signed": 0,
+                    "unsigned": 1,
+                    "trusted": 0,
+                    "untrusted": 0,
+                },
                 "names": ["John Doe"],
                 "emails": ["john.doe@example.com"],
                 "fingerprints": [],
