@@ -95,7 +95,7 @@ glrp . > output.jsonl
 If you want to compare the stats for 2 branches, use the `--compare` flag:
 
 ```bash
-glrp --compare main,feature...main
+glrp . --compare main,feature...main
 ```
 
 (This assumes that feature is based on main).
@@ -103,10 +103,23 @@ glrp --compare main,feature...main
 Alternately, you can compare commit ranges:
 
 ```bash
-glrp --compare main~5,main...main~5
+glrp . --compare main~5,main...main~5
 ```
 
 This generates a `.before.json` and `.after.json` file, which can be used to compare those 2 ranges.
+
+You can also specify a date for the comparison:
+
+```bash
+glrp . --compare 2025-07-01
+```
+
+As above, this will call git log twice, but instead of specifying the ref / range, it will use the `--since` and `--until` flags.
+It also supports relative dates, same as those git flags;
+
+```bash
+glrp . --compare 5d
+```
 
 ### Combine
 

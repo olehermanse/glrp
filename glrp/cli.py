@@ -343,7 +343,9 @@ def get_summary(ref: str | List[str]):
         r = read_json(ref)
         return r
     if isinstance(ref, str):
-        ref = [ref]
+        git_extra = [ref]
+    else:
+        git_extra = ref
     r = parse_logs(
         input=".",
         output_dir=None,
@@ -351,7 +353,7 @@ def get_summary(ref: str | List[str]):
         debug=False,
         summarize=True,
         pretty=False,
-        git_extra=ref,
+        git_extra=git_extra,
     )
     global_state = GlobalState()
     return r
