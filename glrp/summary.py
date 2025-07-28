@@ -14,7 +14,6 @@ class Person:
         self.name, self.email = id_string.split(" <")
         self.email = self.email[:-1]
         assert len(self.name) > 0
-        assert len(self.email) > 0
 
 
 class Commit:
