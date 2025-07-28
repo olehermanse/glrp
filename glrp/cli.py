@@ -32,7 +32,7 @@ class GlobalState:
 
     def _get_fingerprints(self, folder: str):
         assert os.path.isdir(folder)
-        for file in find(folder, extension=".fp"):
+        for file in find(folder, extension=".fp", recursive=True):
             with open(file, "r") as f:
                 for line in f:
                     line = line.strip()
