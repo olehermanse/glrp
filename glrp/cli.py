@@ -244,12 +244,18 @@ def get_args():
     parser.add_argument(
         "input",
         type=str,
-        nargs="?",
-        help="File to read input from or folder to run 'git' in",
+        nargs="*",
+        help="File(s) to read input from or folder(s) to run 'git' in",
     )
     parser.add_argument("--version", action="version", version=version_string())
     parser.add_argument(
         "-o", "--output-dir", type=str, help="Output commits to a folder structure"
+    )
+    parser.add_argument(
+        "--stdin",
+        default=False,
+        action="store_true",
+        help="Don't run git log - read input from standard input",
     )
     parser.add_argument(
         "--trusted",
@@ -282,8 +288,9 @@ def get_args():
     )
     parser.add_argument(
         "--combine",
-        type=str,
-        help="Comma separated list of summary filenames to combine",
+        default=False,
+        action="store_true",
+        help="Combine multiple JSON summaries into one",
     )
     parser.add_argument(
         "--pretty",
@@ -296,18 +303,27 @@ def get_args():
 
 
 def validate_args(args):
+    if not args.input and not args.stdin:
+        raise UserError("")
+    if args.input and args.stdin:
+        raise UserError("The --stdin argument cannot be used input files / folders")
+
     if args.summarize and (args.compare or args.combine):
         raise UserError(
             "The --summarize option cannot be used with --compare or --combine"
         )
     if args.compare and args.combine:
         raise UserError("The --combine option cannot be used with --compare")
-    if args.input and (args.combine or args.compare):
-        raise UserError("The input argument cannot be used with --compare or --combine")
-    if args.combine and (len(args.combine) < 3 or "," not in args.combine):
-        raise UserError(
-            "The --combine option requires two or more comma separated JSON filenames"
-        )
+
+    if args.input and args.compare:
+        raise UserError("The input argument cannot be used with --compare")
+
+    if args.combine and not args.input:
+        raise UserError("The --combine option requires input files to combine")
+
+    if args.combine and len(args.input) < 2:
+        raise UserError("The --combine option requires input files to combine")
+
     if args.trusted:
         if not os.path.exists(args.trusted):
             raise UserError(

@@ -10,7 +10,7 @@ git log -p --format=raw --show-signature --stat
 Simply pipe the output:
 
 ```bash
-git log -p --format=raw --show-signature --stat | glrp --pretty
+git log -p --format=raw --show-signature --stat | glrp --stdin --pretty
 ```
 
 The CLI outputs one JSON object per commit.
@@ -51,36 +51,55 @@ glrp .
 Or you can pipe `git log` output to it:
 
 ```bash
-git log -p --format=raw --show-signature --stat | glrp --output-dir=./out/
+git log -p --format=raw --show-signature --stat | glrp --stdin
 ```
 
 Or perhaps a bit more realistic:
 
 ```bash
 git clone https://github.com/cfengine/core
-(cd core && git log -p --format=raw --show-signature --stat HEAD~500..HEAD 2>/dev/null) | glrp
+(cd core && git log -p --format=raw --show-signature --stat HEAD~500..HEAD 2>/dev/null) | glrp --stdin
 ```
 
 (Clone CFEngine core, start subshell which enters the subdirectory and runs git log for the past 500 commits).
 
 ### Specifying input
 
-By default, `glrp` parses standard input, and outputs to stdout.
-To take input from somewhere else, supply a filename:
+To avoid ambiguity, you need to specify where input is coming from.
+If you are in the correct repo, and want it to run `git log` automatically, simply specify `.` as the path:
 
 ```bash
-glrp some_file.jsonl
-```
-
-The file, `some_file.jsonl` is opened and read, its content is used instead of standard input.
-You can also specify the path to a folder:
-
-```bash
-glrp some_dir/
+glrp .
 ```
 
 The `glrp` tool will run the git log command (`git log -p --format=raw --show-signature --stat`) inside that folder.
-Output from the `git` command will be parsed instead of standard input.
+
+Specifying the path to another folder is also possible:
+
+```bash
+glrp path/to/some/dir/
+```
+
+`glrp` can also read from the standard input pipe:
+
+```bash
+glrp --stdin
+```
+
+(If you run this command alone, nothing will happen - it is waiting for input).
+
+The `--stdin` flag can be used to read output from another program, like `git log`:
+
+```bash
+git log -p --format=raw --show-signature --stat | glrp --stdin
+```
+
+Or from a file:
+
+```bash
+git log -p --format=raw --show-signature --stat > git-log.txt
+cat git-log.txt | glrp --stdin
+```
 
 ### Specifying output
 
@@ -90,9 +109,59 @@ You can use shell redirection to print to file instead of standard output:
 glrp . > output.jsonl
 ```
 
+There are also other flags which affect the output, such as `--summarize`, `--output-dir`, `--summarize`, etc.
+
+### Summarize
+
+You can create a JSON summary of commits using the `--summarize` flag:
+
+```bash
+glrp . --summarize
+```
+
+This will give you stats about each author, including number of commits, associated fingerprints, and email addresses, number of signed commits, etc:
+
+```json
+{
+  "counts": {
+    "commits": 46,
+    "signed": 46,
+    "unsigned": 0,
+    "trusted": 0,
+    "untrusted": 46
+  },
+  "emails": {
+    "john.doe@example.com": {
+      "counts": {
+        "commits": 43,
+        "signed": 43,
+        "unsigned": 0,
+        "trusted": 0,
+        "untrusted": 43
+      },
+      "names": ["John Doe"],
+      "ids": ["John Doe <john.doe@example.com>"],
+      "fingerprints": ["ABCDABCDABCDABCDABCDABCDABCDABCDABCDABCD"]
+    },
+[...]
+```
+
 ### Compare
 
-If you want to compare the stats for 2 branches, use the `--compare` flag:
+You can also generate 2 summaries for comparison.
+This is useful for example for comparing the last 30 days, with all the history before that;
+
+```bash
+glrp . --compare 30d
+```
+
+Specific dates are also supported:
+
+```bash
+glrp . --compare 2025-07-01
+```
+
+Even commit ranges:
 
 ```bash
 glrp . --compare main,feature...main
@@ -100,26 +169,9 @@ glrp . --compare main,feature...main
 
 (This assumes that feature is based on main).
 
-Alternately, you can compare commit ranges:
+In all cases, `--compare` saves 2 files, `.before.json` and `.after.json`.
 
-```bash
-glrp . --compare main~5,main...main~5
-```
-
-This generates a `.before.json` and `.after.json` file, which can be used to compare those 2 ranges.
-
-You can also specify a date for the comparison:
-
-```bash
-glrp . --compare 2025-07-01
-```
-
-As above, this will call git log twice, but instead of specifying the ref / range, it will use the `--since` and `--until` flags.
-It also supports relative dates, same as those git flags;
-
-```bash
-glrp . --compare 5d
-```
+Example: If you find a new name / email in `.after.json`, which is not in `.before.json`, you know you have a new contributor.
 
 ### Combine
 
