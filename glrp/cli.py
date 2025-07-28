@@ -42,9 +42,6 @@ class GlobalState:
 
     def set_trusted_fingerprints(self, folder: str):
         self.trusted = list(self._get_fingerprints(folder))
-        print(f"Trusting {len(self.trusted)} fingerprints")
-        for fingerprint in self.trusted:
-            print(fingerprint)
 
     def record_commit(self, commit):
         self.commits[commit["commit"]] = commit
@@ -337,7 +334,7 @@ def validate_args(args):
     return
 
 
-def get_summary(ref: str | List[str]):
+def get_summary(ref: str | List[str], trusted: Optional[str]):
     global global_state
     if isinstance(ref, str) and ref.endswith(".json"):
         r = read_json(ref)
@@ -354,17 +351,18 @@ def get_summary(ref: str | List[str]):
         summarize=True,
         pretty=False,
         git_extra=git_extra,
+        trusted=trusted,
     )
     global_state = GlobalState()
     return r
 
 
-def _compare_commits(a, b):
-    before = get_summary(a)
+def _compare_commits(a, b, trusted: Optional[str]):
+    before = get_summary(a, trusted)
     assert before is not None
     write_json(".before.json", before)
     print(f"Saved .before.json with stats from {before['counts']['commits']} commits")
-    after = get_summary(b)
+    after = get_summary(b, trusted)
     assert after is not None
     write_json(".after.json", after)
     print(f"Saved .after.json with stats from {after['counts']['commits']} commits")
@@ -378,20 +376,20 @@ def intify(s: str) -> int | None:
         return None
 
 
-def compare_commits(compare):
+def compare_commits(compare, trusted: Optional[str]):
     if "," in compare:
         a, b = compare.split(",")
         a = [a]
         b = [b]
-        return _compare_commits(a, b)
+        return _compare_commits(a, b, trusted)
     n = intify(compare)
     if n is not None:
         a = [f"--skip={n}"]
         b = [f"--max-count={n}"]
-        return _compare_commits(a, b)
+        return _compare_commits(a, b, trusted)
     a = [f"--until={compare}"]
     b = [f"--since={compare}"]
-    return _compare_commits(a, b)
+    return _compare_commits(a, b, trusted)
 
 
 def combine_summaries(filenames):
@@ -406,7 +404,7 @@ def main():
     args = get_args()
     validate_args(args)
     if args.compare:
-        compare_commits(args.compare)
+        compare_commits(args.compare, args.trusted)
         return
     if args.combine:
         combine_summaries(args.combine)
