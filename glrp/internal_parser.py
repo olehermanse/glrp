@@ -277,8 +277,21 @@ def split_commits_to_pretty_commits(split_commits):
                 final["valid_signature"] = True
                 if not valid_signature(final):
                     final["valid_signature"] = False
+                using_line = final["gpg"][1]
+                assert using_line.startswith(
+                    (
+                        "               using RSA key ",
+                        "               using EDDSA key ",
+                    )
+                )
+                if using_line.startswith("               using RSA key "):
+                    key_type = "RSA"
+                elif using_line.startswith("               using EDDSA key "):
+                    key_type = "EDDSA"
+                else:
+                    key_type = "Unknown"
                 final["fingerprint"] = remove_prefix(
-                    final["gpg"][1], "               using RSA key "
+                    final["gpg"][1], f"               using {key_type} key "
                 )
                 if "Primary key fingerprint" in final:
                     del final["Primary key fingerprint"]
