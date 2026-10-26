@@ -8,6 +8,10 @@ glrp_version = (
     .strip()
 )
 
+# No tags, e.g. in forks or when installed from git by pip / uv:
+if not glrp_version:
+    glrp_version = "0.0.0"
+
 if "-" in glrp_version:
     # when not on tag, git describe outputs: "1.3.3-22-gdf81228"
     # pip has gotten strict with version numbers
