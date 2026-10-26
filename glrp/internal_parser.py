@@ -29,6 +29,8 @@ Note: The parsing is lossy, we reconfigure the input stream to replace unicode
       100% correct for these cases.
 """
 
+import base64
+import hashlib
 import sys
 
 
@@ -85,6 +87,18 @@ def valid_signature(commit):
         if line.startswith("Good signature from "):
             return True
     return False
+
+
+def ssh_fingerprint(signature):
+    """SHA256 fingerprint (same as ssh-keygen -l) of the public key inside an
+    armored SSH signature, see PROTOCOL.sshsig in OpenSSH"""
+    blob = base64.b64decode("".join(signature.split("\n")[1:-1]))
+    assert blob.startswith(b"SSHSIG")
+    # Magic (6 bytes) and version (4 bytes), then the length prefixed public key:
+    length = int.from_bytes(blob[10:14], "big")
+    public_key = blob[14 : 14 + length]
+    digest = base64.b64encode(hashlib.sha256(public_key).digest()).decode()
+    return "SHA256:" + digest.rstrip("=")
 
 
 # The main parsing function to use in most cases:
@@ -167,6 +181,14 @@ def raw_commits_to_split_commits(raw_commits):
             commit["Subkey fingerprint"] = [line]
             line = next(lines)
 
+        # SSH signatures are not verified by gpg, git prints its own lines, like
+        # "No signature" (no gpg.ssh.allowedSignersFile) or 'Good "git" signature':
+        while line and not line.startswith("tree "):
+            if "ssh" not in commit:
+                commit["ssh"] = []
+            commit["ssh"].append(line)
+            line = next(lines)
+
         assert line and line.startswith("tree ")  # TODO: Always?
         if line and line.startswith("tree "):
             commit["tree"] = [line]
@@ -191,11 +213,14 @@ def raw_commits_to_split_commits(raw_commits):
         if line and line.startswith("gpgsig "):
             commit["gpgsig"] = [line]
             line = next(lines)
-            while not line.startswith(" -----END PGP SIGNATURE-----"):
-                assert "BEGIN PGP SIGNATURE" not in line
+            while not line.startswith(" -----END "):
+                assert "-----BEGIN " not in line
                 commit["gpgsig"].append(line)
                 line = next(lines)
-            assert line == " -----END PGP SIGNATURE-----"
+            assert line in (
+                " -----END PGP SIGNATURE-----",
+                " -----END SSH SIGNATURE-----",
+            )
             commit["gpgsig"].append(line)
             line = next(lines)
         try:
@@ -257,8 +282,11 @@ def split_commits_to_pretty_commits(split_commits):
         _remove_prefixes(final)
         _strip_lists(final)
         if "gpgsig" in final:
-            assert final["gpgsig"][0] == "-----BEGIN PGP SIGNATURE-----"
-            signature = ["-----BEGIN PGP SIGNATURE-----"]
+            assert final["gpgsig"][0] in (
+                "-----BEGIN PGP SIGNATURE-----",
+                "-----BEGIN SSH SIGNATURE-----",
+            )
+            signature = [final["gpgsig"][0]]
             for line in final["gpgsig"][1:]:
                 assert line.startswith(" ")
                 signature.append(line[1:])
@@ -297,6 +325,14 @@ def split_commits_to_pretty_commits(split_commits):
                     del final["Primary key fingerprint"]
             else:
                 pass  # TODO look into this
+
+        if "gpgsig" in final and final["gpgsig"].startswith(
+            "-----BEGIN SSH SIGNATURE-----"
+        ):
+            final["valid_signature"] = any(
+                x.startswith('Good "git" signature') for x in final.get("ssh", [])
+            )
+            final["fingerprint"] = ssh_fingerprint(final["gpgsig"])
 
         assert "message" in final
         final["message"] = "\n".join(x[4:] for x in final["message"])
